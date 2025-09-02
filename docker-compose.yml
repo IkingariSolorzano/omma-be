@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: omma_db
+      POSTGRES_USER: omma_user
+      POSTGRES_PASSWORD: omma_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omma_user -d omma_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  omma-backend:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=omma_user
+      - DB_PASSWORD=omma_password
+      - DB_NAME=omma_db
+      - DB_SSLMODE=disable
+      - JWT_SECRET=your_jwt_secret_key_here_change_in_production
+      - PORT=8080
+      - GIN_MODE=release
+      - ADMIN_EMAIL=admin@omma.com
+      - ADMIN_PASSWORD=admin123
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
