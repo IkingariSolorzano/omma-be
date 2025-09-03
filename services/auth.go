@@ -46,11 +46,11 @@ func (s *AuthService) GenerateToken(user *models.User) (string, error) {
 func (s *AuthService) Login(email, password string) (*models.User, string, error) {
 	var user models.User
 	if err := config.DB.Where("email = ? AND is_active = ?", email, true).First(&user).Error; err != nil {
-		return nil, "", errors.New("invalid credentials")
+		return nil, "", errors.New("credenciales invalidas")
 	}
 
 	if !s.CheckPassword(password, user.Password) {
-		return nil, "", errors.New("invalid credentials")
+		return nil, "", errors.New("credenciales invalidas")
 	}
 
 	token, err := s.GenerateToken(&user)
@@ -81,3 +81,4 @@ func (s *AuthService) CreateUser(email, password, name string, role models.UserR
 
 	return &user, nil
 }
+

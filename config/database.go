@@ -25,7 +25,7 @@ func ConnectDatabase() {
 
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatal("Error al conectar a la base de datos:", err)
 	}
 
 	DB = database
@@ -38,10 +38,14 @@ func ConnectDatabase() {
 		&models.Schedule{},
 		&models.Reservation{},
 		&models.Penalty{},
+		&models.Payment{},
+		&models.Cancellation{},
+		&models.BusinessHour{},
+		&models.ClosedDate{},
 	)
 	if err != nil {
-		log.Fatal("Failed to migrate database:", err)
+		log.Fatal("Error al migrar la base de datos:", err)
 	}
 
-	log.Println("Database connected and migrated successfully")
+	log.Println("Base de datos conectada y migrada exitosamente")
 }

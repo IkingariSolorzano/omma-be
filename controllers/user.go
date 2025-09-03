@@ -46,13 +46,13 @@ func (uc *UserController) GetCredits(c *gin.Context) {
 	
 	credits, err := uc.creditService.GetUserCredits(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch credits"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los créditos"})
 		return
 	}
 
 	activeCredits, err := uc.creditService.GetActiveCredits(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active credits"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los créditos activos"})
 		return
 	}
 
@@ -79,7 +79,7 @@ func (uc *UserController) CreateReservation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message":     "Reservation created successfully",
+		"message":     "Reservación creada exitosamente",
 		"reservation": reservation,
 	})
 }
@@ -89,11 +89,29 @@ func (uc *UserController) GetReservations(c *gin.Context) {
 	
 	reservations, err := uc.reservationService.GetUserReservations(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch reservations"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener las reservaciones"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"reservations": reservations})
+	// Transform reservations to include space_name and cost_credits
+	var transformedReservations []map[string]interface{}
+	for _, reservation := range reservations {
+		transformed := map[string]interface{}{
+			"id":           reservation.ID,
+			"user_id":      reservation.UserID,
+			"space_id":     reservation.SpaceID,
+			"space_name":   reservation.Space.Name,
+			"start_time":   reservation.StartTime,
+			"end_time":     reservation.EndTime,
+			"status":       reservation.Status,
+			"cost_credits": reservation.CreditsUsed,
+			"created_at":   reservation.CreatedAt,
+			"updated_at":   reservation.UpdatedAt,
+		}
+		transformedReservations = append(transformedReservations, transformed)
+	}
+
+	c.JSON(http.StatusOK, transformedReservations)
 }
 
 func (uc *UserController) CancelReservation(c *gin.Context) {
@@ -111,13 +129,13 @@ func (uc *UserController) CancelReservation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Reservation cancelled successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Reservación cancelada exitosamente"})
 }
 
 func (uc *UserController) GetSpaces(c *gin.Context) {
 	var spaces []models.Space
 	if err := config.DB.Where("is_active = ?", true).Preload("Schedules").Find(&spaces).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch spaces"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los espacios"})
 		return
 	}
 
@@ -139,7 +157,7 @@ func (uc *UserController) GetProfessionalDirectory(c *gin.Context) {
 		Find(&users).Error
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch professionals"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los profesionales"})
 		return
 	}
 

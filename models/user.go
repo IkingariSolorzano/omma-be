@@ -126,3 +126,68 @@ type Penalty struct {
 	UpdatedAt     time.Time     `json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
 }
+
+type Payment struct {
+	ID              uint           `json:"id" gorm:"primaryKey"`
+	UserID          uint           `json:"user_id" gorm:"not null"`
+	User            User           `json:"user,omitempty"`
+	AdminID         uint           `json:"admin_id" gorm:"not null"`
+	Admin           User           `json:"admin,omitempty" gorm:"foreignKey:AdminID"`
+	Amount          float64        `json:"amount" gorm:"not null"` // Money paid
+	CreditsGranted  int            `json:"credits_granted" gorm:"not null"`
+	CreditCost      float64        `json:"credit_cost" gorm:"not null"` // Cost per credit
+	PaymentMethod   string         `json:"payment_method"` // "transfer", "cash", "card"
+	Reference       string         `json:"reference"` // Transaction reference
+	Notes           string         `json:"notes"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+type CancellationStatus string
+
+const (
+	CancellationProcessed CancellationStatus = "processed"
+	CancellationRefunded  CancellationStatus = "refunded"
+	CancellationPenalized CancellationStatus = "penalized"
+)
+
+type Cancellation struct {
+	ID               uint               `json:"id" gorm:"primaryKey"`
+	UserID           uint               `json:"user_id" gorm:"not null"`
+	User             User               `json:"user,omitempty"`
+	ReservationID    uint               `json:"reservation_id" gorm:"not null"`
+	Reservation      Reservation        `json:"reservation,omitempty"`
+	CancelledAt      time.Time          `json:"cancelled_at" gorm:"not null"`
+	HoursBeforeStart float64            `json:"hours_before_start" gorm:"not null"`
+	Status           CancellationStatus `json:"status" gorm:"default:'processed'"`
+	RefundedCredits  int                `json:"refunded_credits" gorm:"default:0"`
+	PenaltyCredits   int                `json:"penalty_credits" gorm:"default:0"`
+	Reason           string             `json:"reason"`
+	Notes            string             `json:"notes"`
+	CancelledBy      *uint              `json:"cancelled_by"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt     `json:"-" gorm:"index"`
+}
+
+type BusinessHour struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	DayOfWeek int            `json:"day_of_week" gorm:"not null;uniqueIndex"` // 0=Sunday, 1=Monday, ..., 6=Saturday
+	StartTime string         `json:"start_time"`                              // Format: "09:00"
+	EndTime   string         `json:"end_time"`                                // Format: "18:00"
+	IsClosed  bool           `json:"is_closed" gorm:"default:false"`          // If true, the business is closed this day
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+type ClosedDate struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	Date      time.Time      `json:"date" gorm:"not null;uniqueIndex"` // Specific date when business is closed
+	Reason    string         `json:"reason" gorm:"not null"`           // Holiday, maintenance, etc.
+	IsActive  bool           `json:"is_active" gorm:"default:true"`    // Can be deactivated without deleting
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}

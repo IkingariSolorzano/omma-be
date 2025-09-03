@@ -21,7 +21,7 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token de autorización requerido"})
 			c.Abort()
 			return
 		}
@@ -33,7 +33,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
 			c.Abort()
 			return
 		}
@@ -52,7 +52,7 @@ func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("user_role")
 		if !exists || role != models.RoleAdmin {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "Acceso denegado"})
 			c.Abort()
 			return
 		}

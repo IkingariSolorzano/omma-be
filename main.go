@@ -34,7 +34,7 @@ func main() {
 
 	log.Printf("Server starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
-		log.Fatal("Failed to start server:", err)
+		log.Fatal("Error al iniciar el servidor:", err)
 	}
 }
 
@@ -56,9 +56,9 @@ func createDefaultAdmin() {
 
 		_, err := authService.CreateUser(adminEmail, adminPassword, "Administrator", models.RoleAdmin)
 		if err != nil {
-			log.Printf("Failed to create default admin: %v", err)
+			log.Printf("Error al crear el administrador por defecto: %v", err)
 		} else {
-			log.Printf("Default admin created with email: %s", adminEmail)
+			log.Printf("Administrador por defecto creado con correo: %s", adminEmail)
 		}
 	}
 }

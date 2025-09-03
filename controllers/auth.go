@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/models"
 	"github.com/IkingariSolorzano/omma-be/services"
 )
@@ -75,8 +76,14 @@ func (ac *AuthController) Register(c *gin.Context) {
 		user.Description = req.Description
 	}
 
+	// Save the updated user to database
+	if err := config.DB.Save(user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar el perfil del usuario"})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "User registered successfully",
+		"message": "Usuario registrado exitosamente",
 		"user":    user,
 	})
 }

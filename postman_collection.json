@@ -1,0 +1,778 @@
+{
+	"info": {
+		"_postman_id": "omma-backend-api",
+		"name": "Omma Backend API",
+		"description": "Colección de endpoints para el sistema de renta de consultorios Omma",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('auth_token', response.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@omma.com\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Register Professional",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"doctor@example.com\",\n    \"password\": \"password123\",\n    \"name\": \"Dr. Juan Pérez\",\n    \"phone\": \"+52 555 123 4567\",\n    \"specialty\": \"Cardiología\",\n    \"description\": \"Especialista en cardiología con 10 años de experiencia\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login Professional",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('auth_token', response.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"doctor@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "User Operations",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile",
+							"host": ["{{base_url}}"],
+							"path": ["profile"]
+						}
+					}
+				},
+				{
+					"name": "Get Credits",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/credits",
+							"host": ["{{base_url}}"],
+							"path": ["credits"]
+						}
+					}
+				},
+				{
+					"name": "Get Spaces",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/spaces",
+							"host": ["{{base_url}}"],
+							"path": ["spaces"]
+						}
+					}
+				},
+				{
+					"name": "Get My Reservations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/reservations",
+							"host": ["{{base_url}}"],
+							"path": ["reservations"]
+						}
+					}
+				},
+				{
+					"name": "Create Reservation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"space_id\": 1,\n    \"start_time\": \"2024-01-15T10:00:00Z\",\n    \"end_time\": \"2024-01-15T11:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/reservations",
+							"host": ["{{base_url}}"],
+							"path": ["reservations"]
+						}
+					}
+				},
+				{
+					"name": "Cancel Reservation",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/reservations/1",
+							"host": ["{{base_url}}"],
+							"path": ["reservations", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Admin Operations",
+			"item": [
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"password\": \"password123\",\n    \"name\": \"Dr. María González\",\n    \"phone\": \"+52 555 987 6543\",\n    \"role\": \"professional\",\n    \"specialty\": \"Dermatología\",\n    \"description\": \"Especialista en dermatología estética\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/users",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "users"]
+						}
+					}
+				},
+				{
+					"name": "Get All Users (with Credits)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/users",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "users"]
+						}
+					}
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Dr. Juan Carlos Pérez\",\n    \"phone\": \"+52 555 999 8888\",\n    \"specialty\": \"Cardiología Intervencionista\",\n    \"description\": \"Especialista en cardiología con 15 años de experiencia\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/users/2",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "users", "2"]
+						}
+					}
+				},
+				{
+					"name": "Change User Password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"new_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/users/2/password",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "users", "2", "password"]
+						}
+					}
+				},
+				{
+					"name": "Add Credits to User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 2,\n    \"amount\": 12\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/credits",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "credits"]
+						}
+					}
+				},
+				{
+					"name": "Create Space",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Consultorio A\",\n    \"description\": \"Consultorio amplio con vista al jardín\",\n    \"capacity\": 1,\n    \"cost_credits\": 6\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/spaces",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "spaces"]
+						}
+					}
+				},
+				{
+					"name": "Get All Spaces (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/spaces",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "spaces"]
+						}
+					}
+				},
+				{
+					"name": "Create Schedule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"space_id\": 1,\n    \"day_of_week\": 1,\n    \"start_time\": \"09:00\",\n    \"end_time\": \"18:00\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/schedules",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "schedules"]
+						}
+					}
+				},
+				{
+					"name": "Get Pending Reservations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/reservations/pending",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "reservations", "pending"]
+						}
+					}
+				},
+				{
+					"name": "Approve Reservation",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/reservations/1/approve",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "reservations", "1", "approve"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Calendar",
+			"item": [
+				{
+					"name": "Get Calendar - Week View",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/calendar?period=week&start_date=2024-01-15",
+							"host": ["{{base_url}}"],
+							"path": ["calendar"],
+							"query": [
+								{
+									"key": "period",
+									"value": "week"
+								},
+								{
+									"key": "start_date",
+									"value": "2024-01-15"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Calendar - Month View",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/calendar?period=month&start_date=2024-01-01",
+							"host": ["{{base_url}}"],
+							"path": ["calendar"],
+							"query": [
+								{
+									"key": "period",
+									"value": "month"
+								},
+								{
+									"key": "start_date",
+									"value": "2024-01-01"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Calendar - Custom Range",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/calendar?period=custom&start_date=2024-01-15&end_date=2024-01-30",
+							"host": ["{{base_url}}"],
+							"path": ["calendar"],
+							"query": [
+								{
+									"key": "period",
+									"value": "custom"
+								},
+								{
+									"key": "start_date",
+									"value": "2024-01-15"
+								},
+								{
+									"key": "end_date",
+									"value": "2024-01-30"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Calendar - Filtered by Spaces",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/calendar?period=week&start_date=2024-01-15&space_ids=1,2",
+							"host": ["{{base_url}}"],
+							"path": ["calendar"],
+							"query": [
+								{
+									"key": "period",
+									"value": "week"
+								},
+								{
+									"key": "start_date",
+									"value": "2024-01-15"
+								},
+								{
+									"key": "space_ids",
+									"value": "1,2"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Available Slots - Today",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/calendar/available?date=2024-01-15",
+							"host": ["{{base_url}}"],
+							"path": ["calendar", "available"],
+							"query": [
+								{
+									"key": "date",
+									"value": "2024-01-15"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Available Slots - Specific Space",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/calendar/available?date=2024-01-15&space_id=1",
+							"host": ["{{base_url}}"],
+							"path": ["calendar", "available"],
+							"query": [
+								{
+									"key": "date",
+									"value": "2024-01-15"
+								},
+								{
+									"key": "space_id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/dashboard/stats",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "dashboard", "stats"]
+						}
+					}
+				},
+				{
+					"name": "Get Recent Activity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/dashboard/activity",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "dashboard", "activity"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Payments",
+			"item": [
+				{
+					"name": "Register Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 2,\n    \"amount\": 600.00,\n    \"credits\": 12,\n    \"payment_method\": \"transfer\",\n    \"reference\": \"TXN123456789\",\n    \"notes\": \"Pago por transferencia bancaria\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/payments",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "payments"]
+						}
+					}
+				},
+				{
+					"name": "Register Cash Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 2,\n    \"amount\": 300.00,\n    \"credits\": 6,\n    \"payment_method\": \"cash\",\n    \"notes\": \"Pago en efectivo\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/admin/payments",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "payments"]
+						}
+					}
+				},
+				{
+					"name": "Get All Payments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/payments",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "payments"]
+						}
+					}
+				},
+				{
+					"name": "Get User Payment History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/admin/payments?user_id=2",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "payments"],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "2"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Public Endpoints",
+			"item": [
+				{
+					"name": "Get Professional Directory",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/professionals",
+							"host": ["{{base_url}}"],
+							"path": ["professionals"]
+						}
+					}
+				}
+			]
+		}
+	]
+}
