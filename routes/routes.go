@@ -14,7 +14,7 @@ func SetupRoutes() *gin.Engine {
 
 	// Configure CORS
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:4200", "http://localhost:3000", "http://127.0.0.1:4200"},
+		AllowOrigins:     []string{"http://localhost:4200", "http://localhost:3000", "http://127.0.0.1:4200", "https://ikingarisolorzano.com", "https://www.ikingarisolorzano.com", "http://ikingarisolorzano.com.mx", "http://www.ikingarisolorzano.com.mx"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
