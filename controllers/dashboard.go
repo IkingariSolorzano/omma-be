@@ -108,7 +108,7 @@ func (dc *DashboardController) GetStats(c *gin.Context) {
 	stats.TotalSpaces = int(totalSpaces)
 
 	// Calculate total hours per day (spaces * working hours)
-	var totalHours int64
+	var totalHours float64
 	config.DB.Raw(`
 		SELECT COALESCE(SUM(
 			EXTRACT(EPOCH FROM (end_time::time - start_time::time)) / 3600

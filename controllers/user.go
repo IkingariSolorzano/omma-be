@@ -71,8 +71,29 @@ func (uc *UserController) CreateReservation(c *gin.Context) {
 		return
 	}
 
+	// Convert times to local timezone (GMT-6) if they come as UTC
+	loc, err := time.LoadLocation("America/Mexico_City")
+	if err != nil {
+		loc = time.Local
+	}
+	
+	// Ensure times are interpreted in local timezone
+	startTime := req.StartTime.In(loc)
+	endTime := req.EndTime.In(loc)
+	
+	// If the times came as UTC but should be local, adjust them
+	if req.StartTime.Location() == time.UTC {
+		// Parse as if it were local time instead of UTC
+		startTime = time.Date(req.StartTime.Year(), req.StartTime.Month(), req.StartTime.Day(),
+			req.StartTime.Hour(), req.StartTime.Minute(), req.StartTime.Second(), 
+			req.StartTime.Nanosecond(), loc)
+		endTime = time.Date(req.EndTime.Year(), req.EndTime.Month(), req.EndTime.Day(),
+			req.EndTime.Hour(), req.EndTime.Minute(), req.EndTime.Second(), 
+			req.EndTime.Nanosecond(), loc)
+	}
+
 	reservation, err := uc.reservationService.CreateReservation(
-		userID.(uint), req.SpaceID, req.StartTime, req.EndTime)
+		userID.(uint), req.SpaceID, startTime, endTime)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

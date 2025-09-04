@@ -487,6 +487,69 @@ func (ac *AdminController) GetPendingReservations(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"reservations": reservations})
 }
 
+// GetAllReservations returns all reservations with optional filters
+func (ac *AdminController) GetAllReservations(c *gin.Context) {
+	// Parse query parameters
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	status := c.Query("status")
+	spaceIDStr := c.Query("space_id")
+
+	var spaceID *uint
+	if spaceIDStr != "" {
+		if id, err := strconv.ParseUint(spaceIDStr, 10, 32); err == nil {
+			spaceIDUint := uint(id)
+			spaceID = &spaceIDUint
+		}
+	}
+
+	reservations := []models.Reservation{}
+	query := config.DB.Preload("User").Preload("ExternalClient").Preload("Space").Preload("CreatedByUser")
+
+	// Apply filters
+	if startDate != "" {
+		if startTime, err := time.Parse("2006-01-02", startDate); err == nil {
+			query = query.Where("start_time >= ?", startTime)
+		}
+	}
+	if endDate != "" {
+		if endTime, err := time.Parse("2006-01-02", endDate); err == nil {
+			endTime = endTime.Add(24 * time.Hour) // Include the entire end date
+			query = query.Where("start_time < ?", endTime)
+		}
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if spaceID != nil {
+		query = query.Where("space_id = ?", *spaceID)
+	}
+
+	if err := query.Order("start_time DESC").Find(&reservations).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener las reservas"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reservations": reservations})
+}
+
+// GetReservationDetails returns detailed information about a specific reservation
+func (ac *AdminController) GetReservationDetails(c *gin.Context) {
+	reservationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de reserva inválido"})
+		return
+	}
+
+	var reservation models.Reservation
+	if err := config.DB.Preload("User").Preload("ExternalClient").Preload("Space").Preload("CreatedByUser").First(&reservation, reservationID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reserva no encontrada"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reservation": reservation})
+}
+
 func (ac *AdminController) CancelReservation(c *gin.Context) {
 	reservationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -776,4 +839,100 @@ func (ac *AdminController) DeleteClosedDate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Fecha cerrada eliminada exitosamente"})
+}
+
+// CreateExternalReservation creates a reservation for external clients (without user accounts)
+type CreateExternalReservationRequest struct {
+	// Client info
+	ClientName  string `json:"client_name" binding:"required"`
+	ClientPhone string `json:"client_phone" binding:"required"`
+	ClientEmail string `json:"client_email"`
+	
+	// Reservation details
+	SpaceID   uint   `json:"space_id" binding:"required"`
+	StartTime string `json:"start_time" binding:"required"` // Format: "2024-01-15T14:00:00Z"
+	Duration  int    `json:"duration" binding:"required"`   // Hours
+	Status    string `json:"status"`                        // "confirmed" or "pending"
+	Notes     string `json:"notes"`
+}
+
+func (ac *AdminController) CreateExternalReservation(c *gin.Context) {
+	var req CreateExternalReservationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get admin user ID from context
+	adminID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no autenticado"})
+		return
+	}
+
+	// Parse start time
+	startTime, err := time.Parse(time.RFC3339, req.StartTime)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato de fecha inválido"})
+		return
+	}
+
+	// Calculate end time
+	endTime := startTime.Add(time.Duration(req.Duration) * time.Hour)
+
+	// Create or find external client
+	var externalClient models.ExternalClient
+	if err := config.DB.Where("phone = ?", req.ClientPhone).First(&externalClient).Error; err != nil {
+		// Client doesn't exist, create new one
+		externalClient = models.ExternalClient{
+			Name:  req.ClientName,
+			Phone: req.ClientPhone,
+			Email: req.ClientEmail,
+			Notes: req.Notes,
+		}
+		if err := config.DB.Create(&externalClient).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear cliente"})
+			return
+		}
+	} else {
+		// Update existing client info
+		externalClient.Name = req.ClientName
+		externalClient.Email = req.ClientEmail
+		if req.Notes != "" {
+			externalClient.Notes = req.Notes
+		}
+		config.DB.Save(&externalClient)
+	}
+
+	// Set default status
+	status := req.Status
+	if status == "" {
+		status = "confirmed"
+	}
+
+	// Create reservation
+	adminIDUint := adminID.(uint)
+	reservation := models.Reservation{
+		ExternalClientID: &externalClient.ID,
+		SpaceID:         req.SpaceID,
+		StartTime:       startTime,
+		EndTime:         endTime,
+		Status:          models.ReservationStatus(status),
+		CreditsUsed:     0, // External clients don't use credits
+		CreatedBy:       &adminIDUint,
+		Notes:           req.Notes,
+	}
+
+	if err := config.DB.Create(&reservation).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear la reserva"})
+		return
+	}
+
+	// Load relations for response
+	config.DB.Preload("ExternalClient").Preload("Space").First(&reservation, reservation.ID)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":     "Reserva creada exitosamente",
+		"reservation": reservation,
+	})
 }

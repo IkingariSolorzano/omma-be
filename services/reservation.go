@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/IkingariSolorzano/omma-be/config"
@@ -50,7 +51,7 @@ func (s *ReservationService) CreateReservation(userID, spaceID uint, startTime, 
 	}
 
 	reservation := models.Reservation{
-		UserID:           userID,
+		UserID:           &userID,
 		SpaceID:          spaceID,
 		StartTime:        startTime,
 		EndTime:          endTime,
@@ -95,13 +96,20 @@ func (s *ReservationService) checkReservationConflicts(spaceID uint, startTime, 
 }
 
 func (s *ReservationService) requiresApproval(spaceID uint, startTime, endTime time.Time) bool {
+	// DEBUG: Add logging to understand timezone handling
+	fmt.Printf("DEBUG requiresApproval - spaceID: %d, startTime: %s (location: %s), endTime: %s (location: %s)\n", 
+		spaceID, startTime.Format("2006-01-02 15:04"), startTime.Location().String(), 
+		endTime.Format("2006-01-02 15:04"), endTime.Location().String())
+	
 	// Check if date is a closed date
 	if s.isClosedDate(startTime) {
+		fmt.Printf("DEBUG: Closed date detected\n")
 		return true // Closed date, requires approval
 	}
 
 	// Check business hours
 	if !s.isWithinBusinessHours(startTime, endTime) {
+		fmt.Printf("DEBUG: Outside business hours\n")
 		return true // Outside business hours, requires approval
 	}
 
@@ -109,54 +117,73 @@ func (s *ReservationService) requiresApproval(spaceID uint, startTime, endTime t
 	var schedules []models.Schedule
 	dayOfWeek := int(startTime.Weekday())
 
-	config.DB.Where("space_id = ? AND day_of_week = ? AND is_active = ?",
-		spaceID, dayOfWeek, true).Find(&schedules)
+	config.DB.Where("space_id = ? AND day_of_week = ? AND is_active = ?", spaceID, dayOfWeek, true).Find(&schedules)
+	fmt.Printf("DEBUG: Found %d schedules for space %d on day %d\n", len(schedules), spaceID, dayOfWeek)
 
 	if len(schedules) == 0 {
+		fmt.Printf("DEBUG: No schedule defined for space\n")
 		return true // No schedule defined, requires approval
 	}
 
 	startTimeStr := startTime.Format("15:04")
 	endTimeStr := endTime.Format("15:04")
+	fmt.Printf("DEBUG: Checking time range %s-%s\n", startTimeStr, endTimeStr)
 
-	for _, schedule := range schedules {
+	for i, schedule := range schedules {
+		fmt.Printf("DEBUG: Schedule %d: %s-%s\n", i, schedule.StartTime, schedule.EndTime)
 		if startTimeStr >= schedule.StartTime && endTimeStr <= schedule.EndTime {
+			fmt.Printf("DEBUG: Time is within schedule - NO approval required\n")
 			return false // Within allowed schedule
 		}
 	}
 
+	fmt.Printf("DEBUG: Outside allowed schedule - approval required\n")
 	return true // Outside allowed schedule, requires approval
 }
 
 // isClosedDate checks if the given date is marked as closed
 func (s *ReservationService) isClosedDate(date time.Time) bool {
+	// Convert to local timezone for date comparison
+	loc, err := time.LoadLocation("America/Mexico_City") // GMT-6
+	if err != nil {
+		loc = time.Local
+	}
+	
+	localDate := date.In(loc)
 	var count int64
 	config.DB.Model(&models.ClosedDate{}).
-		Where("date = ? AND is_active = ?", date.Format("2006-01-02"), true).
+		Where("date = ? AND is_active = ?", localDate.Format("2006-01-02"), true).
 		Count(&count)
 	return count > 0
 }
 
 // isWithinBusinessHours checks if the reservation time is within business hours
 func (s *ReservationService) isWithinBusinessHours(startTime, endTime time.Time) bool {
-	dayOfWeek := int(startTime.Weekday())
-	
-	var businessHour models.BusinessHour
-	err := config.DB.Where("day_of_week = ?", dayOfWeek).First(&businessHour).Error
-	
+	// Convert to local timezone for business hours validation
+	loc, err := time.LoadLocation("America/Mexico_City") // GMT-6
 	if err != nil {
-		// No business hours defined for this day, requires approval
-		return false
+		// Fallback to system timezone if location loading fails
+		loc = time.Local
 	}
 	
+	localStartTime := startTime.In(loc)
+	localEndTime := endTime.In(loc)
+	dayOfWeek := int(localStartTime.Weekday())
+
+	var businessHour models.BusinessHour
+	err = config.DB.Where("day_of_week = ?", dayOfWeek).First(&businessHour).Error
+
+	if err != nil {
+		return false
+	}
+
 	if businessHour.IsClosed {
-		// Business is closed on this day
 		return false
 	}
-	
-	startTimeStr := startTime.Format("15:04")
-	endTimeStr := endTime.Format("15:04")
-	
+
+	startTimeStr := localStartTime.Format("15:04")
+	endTimeStr := localEndTime.Format("15:04")
+
 	// Check if reservation time is within business hours
 	return startTimeStr >= businessHour.StartTime && endTimeStr <= businessHour.EndTime
 }
@@ -192,11 +219,12 @@ func (s *ReservationService) CancelReservation(reservationID, userID uint) error
 
 	// Check if cancellation is within 24 hours
 	if hoursUntilReservation < 24 {
-		// Apply penalty (4 credits)
+		// Apply penalty (full cost of the reservation)
+		penaltyAmount := reservation.CreditsUsed
 		penalty := models.Penalty{
 			UserID:        userID,
 			ReservationID: reservationID,
-			Amount:        4, // 4 credits penalty
+			Amount:        penaltyAmount,
 			Status:        models.PenaltyPending,
 			Reason:        "Cancelación por usuario (menos de 24 horas)",
 		}
@@ -206,34 +234,30 @@ func (s *ReservationService) CancelReservation(reservationID, userID uint) error
 			return err
 		}
 
-		cancellation.PenaltyCredits = 4
+		cancellation.PenaltyCredits = penaltyAmount
 
 		if reservation.Status == models.StatusConfirmed {
-			// If already charged, refund only (credits used - penalty)
-			refund := reservation.CreditsUsed - 4
-			if refund < 0 { refund = 0 }
-			if _, err := s.creditService.AddCredits(userID, refund); err != nil {
-				tx.Rollback()
-				return err
-			}
-			cancellation.Status = models.CancellationRefunded
-			cancellation.RefundedCredits = refund
+			// If already charged, no refund is issued as the penalty is the full cost.
+			cancellation.Status = models.CancellationPenalized
+			cancellation.RefundedCredits = 0
 		} else {
-			// If not yet charged, deduct the penalty
-			if err := s.creditService.DeductCredits(userID, 4); err != nil {
+			// If not yet charged (e.g., pending approval), deduct the penalty amount.
+			if err := s.creditService.DeductCredits(userID, penaltyAmount); err != nil {
 				tx.Rollback()
 				return err
 			}
 			cancellation.Status = models.CancellationPenalized
 		}
 	} else {
-		// No penalty, refund all credits
-		if _, err := s.creditService.AddCredits(userID, reservation.CreditsUsed); err != nil {
-			tx.Rollback()
-			return err
+		// No penalty, refund all credits if the reservation was confirmed and paid.
+		if reservation.Status == models.StatusConfirmed {
+			if _, err := s.creditService.AddCredits(userID, reservation.CreditsUsed); err != nil {
+				tx.Rollback()
+				return err
+			}
+			cancellation.RefundedCredits = reservation.CreditsUsed
 		}
 		cancellation.Status = models.CancellationRefunded
-		cancellation.RefundedCredits = reservation.CreditsUsed
 	}
 
 	// Create cancellation record
@@ -268,9 +292,11 @@ func (s *ReservationService) ApproveReservation(reservationID, adminID uint) err
 		return err
 	}
 
-	// Deduct credits
-	if err := s.creditService.DeductCredits(reservation.UserID, reservation.CreditsUsed); err != nil {
-		return err
+	// Deduct credits (only for user reservations, not external clients)
+	if reservation.UserID != nil {
+		if err := s.creditService.DeductCredits(*reservation.UserID, reservation.CreditsUsed); err != nil {
+			return err
+		}
 	}
 
 	// Update reservation
@@ -312,7 +338,7 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 	tx := config.DB.Begin()
 
 	cancellation := models.Cancellation{
-		UserID:           reservation.UserID,
+		UserID:           *reservation.UserID,
 		ReservationID:    reservationID,
 		CancelledAt:      now,
 		HoursBeforeStart: hoursUntilReservation,
@@ -324,7 +350,7 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 	penaltyInt := int(penalty)
 	if penalty > 0 {
 		penaltyRecord := models.Penalty{
-			UserID:        reservation.UserID,
+			UserID:        *reservation.UserID,
 			ReservationID: reservationID,
 			Amount:        penaltyInt,
 			Status:        models.PenaltyPending,
@@ -344,7 +370,7 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 				refund = 0
 			}
 			if refund > 0 {
-				if _, err := s.creditService.AddCredits(reservation.UserID, refund); err != nil {
+				if _, err := s.creditService.AddCredits(*reservation.UserID, refund); err != nil {
 					tx.Rollback()
 					return err
 				}
@@ -352,7 +378,7 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 			cancellation.Status = models.CancellationRefunded
 			cancellation.RefundedCredits = refund
 		} else {
-			if err := s.creditService.DeductCredits(reservation.UserID, penaltyInt); err != nil {
+			if err := s.creditService.DeductCredits(*reservation.UserID, penaltyInt); err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -360,7 +386,7 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 		}
 	} else {
 		if reservation.Status == models.StatusConfirmed {
-			if _, err := s.creditService.AddCredits(reservation.UserID, reservation.CreditsUsed); err != nil {
+			if _, err := s.creditService.AddCredits(*reservation.UserID, reservation.CreditsUsed); err != nil {
 				tx.Rollback()
 				return err
 			}

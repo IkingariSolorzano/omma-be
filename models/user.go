@@ -87,17 +87,22 @@ const (
 
 type Reservation struct {
 	ID              uint              `json:"id" gorm:"primaryKey"`
-	UserID          uint              `json:"user_id" gorm:"not null"`
-	User            User              `json:"user,omitempty"`
+	UserID          *uint             `json:"user_id"`                        // Nullable for external clients
+	User            *User             `json:"user,omitempty"`
+	ExternalClientID *uint            `json:"external_client_id"`             // For clients without accounts
+	ExternalClient  *ExternalClient   `json:"external_client,omitempty"`
 	SpaceID         uint              `json:"space_id" gorm:"not null"`
 	Space           Space             `json:"space,omitempty"`
 	StartTime       time.Time         `json:"start_time" gorm:"not null"`
 	EndTime         time.Time         `json:"end_time" gorm:"not null"`
 	Status          ReservationStatus `json:"status" gorm:"default:'pending'"`
-	CreditsUsed     int               `json:"credits_used" gorm:"not null"`
+	CreditsUsed     int               `json:"credits_used" gorm:"default:0"`  // 0 for external clients (cash payment)
 	RequiresApproval bool             `json:"requires_approval" gorm:"default:false"`
 	ApprovedBy      *uint             `json:"approved_by"`
 	ApprovedAt      *time.Time        `json:"approved_at"`
+	CreatedBy       *uint             `json:"created_by"`                     // Admin who created the reservation
+	CreatedByUser   *User             `json:"created_by_user,omitempty" gorm:"foreignKey:CreatedBy"`      // Relation to the admin who created it
+	Notes           string            `json:"notes"`                          // Additional notes from admin
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 	DeletedAt       gorm.DeletedAt    `json:"-" gorm:"index"`
@@ -190,4 +195,19 @@ type ClosedDate struct {
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// ExternalClient represents clients without user accounts (for admin bookings)
+type ExternalClient struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	Name      string         `json:"name" gorm:"not null"`
+	Phone     string         `json:"phone" gorm:"not null"`
+	Email     string         `json:"email"`
+	Notes     string         `json:"notes"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+
+	// Relations
+	Reservations []Reservation `json:"reservations,omitempty"`
 }

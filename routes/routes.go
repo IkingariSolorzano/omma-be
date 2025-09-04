@@ -99,6 +99,8 @@ func SetupRoutes() *gin.Engine {
 		
 		// Reservation management
 		admin.GET("/reservations/pending", adminController.GetPendingReservations)
+		admin.GET("/reservations", adminController.GetAllReservations)
+		admin.GET("/reservations/:id", adminController.GetReservationDetails)
 		admin.PUT("/reservations/:id/approve", adminController.ApproveReservation)
 		admin.PUT("/reservations/:id/cancel", adminController.CancelReservation)
 		
@@ -112,6 +114,9 @@ func SetupRoutes() *gin.Engine {
 		admin.GET("/closed-dates", adminController.GetClosedDates)
 		admin.POST("/closed-dates", adminController.CreateClosedDate)
 		admin.DELETE("/closed-dates/:id", adminController.DeleteClosedDate)
+		
+		// External Client Reservations
+		admin.POST("/reservations/external", adminController.CreateExternalReservation)
 	}
 
 	return r

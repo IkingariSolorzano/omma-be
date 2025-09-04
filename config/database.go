@@ -42,10 +42,45 @@ func ConnectDatabase() {
 		&models.Cancellation{},
 		&models.BusinessHour{},
 		&models.ClosedDate{},
+		&models.ExternalClient{},
 	)
 	if err != nil {
 		log.Fatal("Error al migrar la base de datos:", err)
 	}
 
+	// Run manual migration to make user_id nullable in reservations table
+	err = migrateReservationsUserID(DB)
+	if err != nil {
+		log.Printf("Warning: Could not migrate reservations user_id column: %v", err)
+	}
+
 	log.Println("Base de datos conectada y migrada exitosamente")
+}
+
+// migrateReservationsUserID makes the user_id column nullable in reservations table
+func migrateReservationsUserID(db *gorm.DB) error {
+	// Check if the column exists and is not nullable
+	var count int64
+	err := db.Raw(`
+		SELECT COUNT(*) 
+		FROM information_schema.columns 
+		WHERE table_name = 'reservations' 
+		AND column_name = 'user_id' 
+		AND is_nullable = 'NO'
+	`).Scan(&count).Error
+	
+	if err != nil {
+		return err
+	}
+	
+	// If the column exists and is not nullable, make it nullable
+	if count > 0 {
+		err = db.Exec("ALTER TABLE reservations ALTER COLUMN user_id DROP NOT NULL").Error
+		if err != nil {
+			return err
+		}
+		log.Println("Successfully made user_id column nullable in reservations table")
+	}
+	
+	return nil
 }
