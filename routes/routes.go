@@ -101,6 +101,7 @@ func SetupRoutes() *gin.Engine {
 		admin.GET("/reservations/pending", adminController.GetPendingReservations)
 		admin.GET("/reservations", adminController.GetAllReservations)
 		admin.GET("/reservations/:id", adminController.GetReservationDetails)
+		admin.PUT("/reservations/:id", adminController.UpdateReservation)
 		admin.PUT("/reservations/:id/approve", adminController.ApproveReservation)
 		admin.PUT("/reservations/:id/cancel", adminController.CancelReservation)
 		

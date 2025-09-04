@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -209,6 +210,13 @@ type CancelReservationRequest struct {
 	Reason  string  `json:"reason" binding:"required"`
 	Penalty float64 `json:"penalty"`
 	Notes   string  `json:"notes"`
+}
+
+type UpdateReservationRequest struct {
+	SpaceID   *uint   `json:"space_id"`
+	StartTime *string `json:"start_time"`
+	EndTime   *string `json:"end_time"`
+	Notes     *string `json:"notes"`
 }
 
 func (ac *AdminController) CreateUser(c *gin.Context) {
@@ -934,5 +942,147 @@ func (ac *AdminController) CreateExternalReservation(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message":     "Reserva creada exitosamente",
 		"reservation": reservation,
+	})
+}
+
+// UpdateReservation allows admin to update reservation details
+func (ac *AdminController) UpdateReservation(c *gin.Context) {
+	reservationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de reserva inválido"})
+		return
+	}
+
+	var req UpdateReservationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Debug logging
+	log.Printf("Update request for reservation %d: %+v", reservationID, req)
+
+	// Get the existing reservation
+	var reservation models.Reservation
+	if err := config.DB.Preload("User").Preload("ExternalClient").Preload("Space").First(&reservation, reservationID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reserva no encontrada"})
+		return
+	}
+
+	// Check if reservation can be updated (not cancelled)
+	if reservation.Status == models.StatusCancelled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se puede actualizar una reserva cancelada"})
+		return
+	}
+
+	// Log original values
+	log.Printf("Original reservation - SpaceID: %d, StartTime: %v, EndTime: %v", 
+		reservation.SpaceID, reservation.StartTime, reservation.EndTime)
+
+	// Update fields if provided
+	if req.SpaceID != nil {
+		// Verify the space exists
+		var space models.Space
+		if err := config.DB.First(&space, *req.SpaceID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Espacio no encontrado"})
+			return
+		}
+		log.Printf("Updating SpaceID from %d to %d", reservation.SpaceID, *req.SpaceID)
+		reservation.SpaceID = *req.SpaceID
+	}
+
+	if req.StartTime != nil {
+		startTime, err := time.Parse(time.RFC3339, *req.StartTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato de fecha de inicio inválido"})
+			return
+		}
+		reservation.StartTime = startTime
+	}
+
+	if req.EndTime != nil {
+		endTime, err := time.Parse(time.RFC3339, *req.EndTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato de fecha de fin inválido"})
+			return
+		}
+		reservation.EndTime = endTime
+	}
+
+	if req.Notes != nil {
+		reservation.Notes = *req.Notes
+	}
+
+	// Validate that start time is before end time
+	if reservation.StartTime.After(reservation.EndTime) || reservation.StartTime.Equal(reservation.EndTime) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "La hora de inicio debe ser anterior a la hora de fin"})
+		return
+	}
+
+	// Check for conflicts with other reservations (excluding current one)
+	var conflictCount int64
+	config.DB.Model(&models.Reservation{}).
+		Where("space_id = ? AND id != ? AND status != ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?))",
+			reservation.SpaceID, reservation.ID, models.StatusCancelled,
+			reservation.EndTime, reservation.StartTime,
+			reservation.StartTime, reservation.EndTime).
+		Count(&conflictCount)
+
+	if conflictCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ya existe una reserva en ese horario para el espacio seleccionado"})
+		return
+	}
+
+	// Log values before save
+	log.Printf("Before save - SpaceID: %d, StartTime: %v, EndTime: %v", 
+		reservation.SpaceID, reservation.StartTime, reservation.EndTime)
+
+	// Use Updates instead of Save to ensure changes persist
+	updates := make(map[string]interface{})
+	if req.SpaceID != nil {
+		log.Printf("Adding space_id to updates: %d", *req.SpaceID)
+		updates["space_id"] = *req.SpaceID
+	}
+	if req.StartTime != nil {
+		startTime, _ := time.Parse(time.RFC3339, *req.StartTime)
+		log.Printf("Adding start_time to updates: %v", startTime)
+		updates["start_time"] = startTime
+	}
+	if req.EndTime != nil {
+		endTime, _ := time.Parse(time.RFC3339, *req.EndTime)
+		log.Printf("Adding end_time to updates: %v", endTime)
+		updates["end_time"] = endTime
+	}
+	if req.Notes != nil {
+		log.Printf("Adding notes to updates: %s", *req.Notes)
+		updates["notes"] = *req.Notes
+	}
+	
+	log.Printf("Final updates map before DB call: %+v", updates)
+
+	// Use direct SQL update to bypass any GORM hooks that might be interfering
+	result := config.DB.Model(&models.Reservation{}).Where("id = ?", reservation.ID).Updates(updates)
+	if result.Error != nil {
+		log.Printf("Error updating reservation: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar la reserva"})
+		return
+	}
+	
+	log.Printf("Rows affected: %d", result.RowsAffected)
+
+	log.Printf("Reservation updated successfully with: %+v", updates)
+
+	// Reload with relations for response
+	var updatedReservation models.Reservation
+	if err := config.DB.Preload("User").Preload("ExternalClient").Preload("Space").Preload("CreatedByUser").First(&updatedReservation, reservation.ID).Error; err != nil {
+		log.Printf("Error reloading reservation: %v", err)
+	}
+
+	log.Printf("After reload - SpaceID: %d, StartTime: %v, EndTime: %v", 
+		updatedReservation.SpaceID, updatedReservation.StartTime, updatedReservation.EndTime)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Reserva actualizada exitosamente",
+		"reservation": updatedReservation,
 	})
 }
