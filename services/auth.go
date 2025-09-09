@@ -5,11 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/middleware"
 	"github.com/IkingariSolorzano/omma-be/models"
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct{}
@@ -35,7 +35,8 @@ func (s *AuthService) GenerateToken(user *models.User) (string, error) {
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			// ExpiresAt: jwt.NewNumericDate(time.Now().Add(3 * time.Minute)),
+			IssuedAt: jwt.NewNumericDate(time.Now()),
 		},
 	}
 
@@ -81,4 +82,3 @@ func (s *AuthService) CreateUser(email, password, name string, role models.UserR
 
 	return &user, nil
 }
-

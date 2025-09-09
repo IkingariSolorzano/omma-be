@@ -45,6 +45,12 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 	var startDate, endDate time.Time
 	var err error
 
+	// Load local timezone for consistent handling
+	loc, err := time.LoadLocation("America/Mexico_City")
+	if err != nil {
+		loc = time.Local
+	}
+
 	// Parse dates based on period type
 	switch periodType {
 	case "day":
@@ -108,6 +114,10 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 		return
 	}
 
+	// Ensure dates are in local timezone for consistent querying
+	startDate = startDate.In(loc)
+	endDate = endDate.In(loc)
+
 	// Build query
 	query := config.DB.Table("reservations r").
 		Select("r.id, r.space_id, s.name as space_name, r.user_id, u.name as user_name, r.start_time, r.end_time, r.status").
@@ -161,6 +171,15 @@ func (cc *CalendarController) GetAvailableSlots(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato inválido de fecha. Use YYYY-MM-DD"})
 		return
 	}
+
+	// Load local timezone for consistent handling
+	loc, err := time.LoadLocation("America/Mexico_City")
+	if err != nil {
+		loc = time.Local
+	}
+
+	// Ensure date is in local timezone
+	date = date.In(loc)
 
 	dayOfWeek := int(date.Weekday())
 	startOfDay := date.Truncate(24 * time.Hour)

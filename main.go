@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-
 	"github.com/joho/godotenv"
 	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/routes"
@@ -25,6 +24,9 @@ func main() {
 
 	// Setup routes
 	r := routes.SetupRoutes()
+
+	// Serve static files for profile pictures
+	r.Static("/uploads", "./uploads")
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

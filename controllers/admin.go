@@ -1,15 +1,18 @@
 package controllers
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/models"
 	"github.com/IkingariSolorzano/omma-be/services"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AdminController struct {
@@ -20,95 +23,95 @@ type AdminController struct {
 
 // Per-lot handlers
 func (ac *AdminController) ExtendCreditLot(c *gin.Context) {
-    var req ExtendCreditLotRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    if err := ac.creditService.ExtendCreditLot(req.CreditID, req.Days); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "Fecha de expiración del lote extendida"})
+	var req ExtendCreditLotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := ac.creditService.ExtendCreditLot(req.CreditID, req.Days); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Fecha de expiración del lote extendida"})
 }
 
 func (ac *AdminController) ReactivateCreditLot(c *gin.Context) {
-    var req ReactivateCreditLotRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    newExpiry, err := time.Parse("2006-01-02", req.NewExpiry)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Formato de fecha inválido. Use YYYY-MM-DD"})
-        return
-    }
-    if err := ac.creditService.ReactivateCreditLot(req.CreditID, newExpiry); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "Lote reactivado"})
+	var req ReactivateCreditLotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	newExpiry, err := time.Parse("2006-01-02", req.NewExpiry)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato de fecha inválido. Use YYYY-MM-DD"})
+		return
+	}
+	if err := ac.creditService.ReactivateCreditLot(req.CreditID, newExpiry); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Lote reactivado"})
 }
 
 func (ac *AdminController) TransferFromCreditLot(c *gin.Context) {
-    var req TransferFromLotRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    if err := ac.creditService.TransferFromLot(req.CreditID, req.ToUserID, req.Amount); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "Créditos transferidos desde el lote"})
+	var req TransferFromLotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := ac.creditService.TransferFromLot(req.CreditID, req.ToUserID, req.Amount); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Créditos transferidos desde el lote"})
 }
 
 func (ac *AdminController) DeductFromCreditLot(c *gin.Context) {
-    var req DeductFromLotRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    if err := ac.creditService.AdminDeductFromLot(req.CreditID, req.Amount); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{"message": "Créditos deducidos del lote"})
+	var req DeductFromLotRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := ac.creditService.AdminDeductFromLot(req.CreditID, req.Amount); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Créditos deducidos del lote"})
 }
 
 func NewAdminController() *AdminController {
-    return &AdminController{
-        authService:        services.NewAuthService(),
-        creditService:      services.NewCreditService(),
-        reservationService: services.NewReservationService(),
-    }
+	return &AdminController{
+		authService:        services.NewAuthService(),
+		creditService:      services.NewCreditService(),
+		reservationService: services.NewReservationService(),
+	}
 }
 
 // GetUserCreditLots returns all credit lots for a specific user (admin-only)
 func (ac *AdminController) GetUserCreditLots(c *gin.Context) {
-    userIDParam := c.Param("id")
-    uid, err := strconv.ParseUint(userIDParam, 10, 32)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario invalido"})
-        return
-    }
+	userIDParam := c.Param("id")
+	uid, err := strconv.ParseUint(userIDParam, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario invalido"})
+		return
+	}
 
-    credits, err := ac.creditService.GetUserCredits(uint(uid))
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los créditos del usuario"})
-        return
-    }
+	credits, err := ac.creditService.GetUserCredits(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los créditos del usuario"})
+		return
+	}
 
-    activeCredits, err := ac.creditService.GetActiveCredits(uint(uid))
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los créditos activos del usuario"})
-        return
-    }
+	activeCredits, err := ac.creditService.GetActiveCredits(uint(uid))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los créditos activos del usuario"})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{
-        "credits":        credits,
-        "active_credits": activeCredits,
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"credits":        credits,
+		"active_credits": activeCredits,
+	})
 }
 
 type CreateUserRequest struct {
@@ -148,24 +151,24 @@ type DeductCreditsRequest struct {
 }
 
 type ExtendCreditLotRequest struct {
-    CreditID uint `json:"credit_id" binding:"required"`
-    Days     int  `json:"days" binding:"required"`
+	CreditID uint `json:"credit_id" binding:"required"`
+	Days     int  `json:"days" binding:"required"`
 }
 
 type ReactivateCreditLotRequest struct {
-    CreditID  uint   `json:"credit_id" binding:"required"`
-    NewExpiry string `json:"new_expiry" binding:"required"` // YYYY-MM-DD
+	CreditID  uint   `json:"credit_id" binding:"required"`
+	NewExpiry string `json:"new_expiry" binding:"required"` // YYYY-MM-DD
 }
 
 type TransferFromLotRequest struct {
-    CreditID uint `json:"credit_id" binding:"required"`
-    ToUserID uint `json:"to_user_id" binding:"required"`
-    Amount   int  `json:"amount" binding:"required"`
+	CreditID uint `json:"credit_id" binding:"required"`
+	ToUserID uint `json:"to_user_id" binding:"required"`
+	Amount   int  `json:"amount" binding:"required"`
 }
 
 type DeductFromLotRequest struct {
-    CreditID uint `json:"credit_id" binding:"required"`
-    Amount   int  `json:"amount" binding:"required"`
+	CreditID uint `json:"credit_id" binding:"required"`
+	Amount   int  `json:"amount" binding:"required"`
 }
 
 type CreateSpaceRequest struct {
@@ -194,7 +197,7 @@ type ChangePasswordRequest struct {
 }
 
 type CreateBusinessHourRequest struct {
-	DayOfWeek int    `json:"day_of_week" binding:"required,min=0,max=6"`
+	DayOfWeek int    `json:"day_of_week" binding:"gte=0,lte=6"`
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time"`
 	IsClosed  bool   `json:"is_closed"`
@@ -279,11 +282,25 @@ func (ac *AdminController) AddCredits(c *gin.Context) {
 		return
 	}
 
-	credit, err := ac.creditService.AddCredits(req.UserID, req.Amount)
+	adminID, _ := c.Get("user_id")
+	notes := fmt.Sprintf("Créditos agregados por administrador ID: %d", adminID)
+
+	credit, err := ac.creditService.AddCredits(req.UserID, req.Amount, "Créditos agregados por administrador", 0, notes)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Record in credit history for dashboard statistics
+	creditHistory := models.CreditHistory{
+		UserID:      req.UserID,
+		AdminID:     adminID.(uint),
+		Amount:      req.Amount,
+		Action:      "granted",
+		Description: "Créditos agregados por administrador",
+		Notes:       notes,
+	}
+	config.DB.Create(&creditHistory)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Creditos agregados exitosamente",
@@ -390,6 +407,80 @@ func (ac *AdminController) GetSpaces(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"spaces": spaces})
+}
+
+func (ac *AdminController) UpdateSpace(c *gin.Context) {
+	spaceID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de espacio invalido"})
+		return
+	}
+
+	var req CreateSpaceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var space models.Space
+	if err := config.DB.First(&space, spaceID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Espacio no encontrado"})
+		return
+	}
+
+	// Update fields
+	space.Name = req.Name
+	space.Description = req.Description
+	space.Capacity = req.Capacity
+	space.CostCredits = req.CostCredits
+
+	// Set default values if not provided
+	if space.Capacity == 0 {
+		space.Capacity = 1
+	}
+	if space.CostCredits == 0 {
+		space.CostCredits = 6
+	}
+
+	if err := config.DB.Save(&space).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar el espacio"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Espacio actualizado exitosamente",
+		"space":   space,
+	})
+}
+
+func (ac *AdminController) DeleteSpace(c *gin.Context) {
+	spaceID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de espacio invalido"})
+		return
+	}
+
+	// Check if space exists and get it for response
+	var space models.Space
+	if err := config.DB.First(&space, spaceID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Espacio no encontrado"})
+		return
+	}
+
+	// Check if space has active reservations
+	var reservationCount int64
+	config.DB.Model(&models.Reservation{}).Where("space_id = ? AND status != ?", spaceID, models.StatusCancelled).Count(&reservationCount)
+	if reservationCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No se puede eliminar el espacio porque tiene reservas activas"})
+		return
+	}
+
+	if err := config.DB.Delete(&models.Space{}, spaceID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al eliminar el espacio"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Espacio eliminado exitosamente"})
 }
 
 func (ac *AdminController) CreateSchedule(c *gin.Context) {
@@ -590,7 +681,7 @@ func (ac *AdminController) ApproveReservation(c *gin.Context) {
 	}
 
 	adminID, _ := c.Get("user_id")
-	
+
 	err = ac.reservationService.ApproveReservation(uint(reservationID), adminID.(uint))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -697,7 +788,6 @@ func (ac *AdminController) CreateBusinessHour(c *gin.Context) {
 		return
 	}
 
-	// Validate time format if not closed
 	if !req.IsClosed {
 		if req.StartTime == "" || req.EndTime == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Start time and end time are required when not closed"})
@@ -705,22 +795,40 @@ func (ac *AdminController) CreateBusinessHour(c *gin.Context) {
 		}
 	}
 
-	businessHour := models.BusinessHour{
-		DayOfWeek: req.DayOfWeek,
-		StartTime: req.StartTime,
-		EndTime:   req.EndTime,
-		IsClosed:  req.IsClosed,
-	}
+	var businessHour models.BusinessHour
+	db := config.DB.Unscoped().Where("day_of_week = ?", req.DayOfWeek).First(&businessHour)
 
-	if err := config.DB.Create(&businessHour).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Error al crear el horario de negocio"})
-		return
+	if db.Error == nil {
+		// Record exists, update and restore it
+		updates := map[string]interface{}{
+			"start_time": req.StartTime,
+			"end_time":   req.EndTime,
+			"is_closed":  req.IsClosed,
+			"deleted_at": nil,
+		}
+		if err := config.DB.Model(&businessHour).Unscoped().Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar el horario de negocio"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Horario de negocio actualizado exitosamente", "business_hour": businessHour})
+	} else if errors.Is(db.Error, gorm.ErrRecordNotFound) {
+		// Record does not exist, create it
+		newBusinessHour := models.BusinessHour{
+			DayOfWeek: req.DayOfWeek,
+			StartTime: req.StartTime,
+			EndTime:   req.EndTime,
+			IsClosed:  req.IsClosed,
+		}
+		if err := config.DB.Create(&newBusinessHour).Error; err != nil {
+			log.Printf("Error creating business hour: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Error al crear el horario de negocio"})
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"message": "Horario de negocio creado exitosamente", "business_hour": newBusinessHour})
+	} else {
+		// Another database error occurred
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error en la base de datos al buscar el horario de negocio"})
 	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message":      "Horario de negocio creado exitosamente",
-		"business_hour": businessHour,
-	})
 }
 
 func (ac *AdminController) UpdateBusinessHour(c *gin.Context) {
@@ -761,7 +869,7 @@ func (ac *AdminController) UpdateBusinessHour(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "Horario de negocio actualizado exitosamente",
+		"message":       "Horario de negocio actualizado exitosamente",
 		"business_hour": businessHour,
 	})
 }
@@ -800,7 +908,25 @@ func GetPublicClosedDates(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, closedDates)
+	// We need to return dates in YYYY-MM-DD format to match frontend expectations
+	type PublicClosedDate struct {
+		ID       uint   `json:"id"`
+		Date     string `json:"date"`
+		Reason   string `json:"reason"`
+		IsActive bool   `json:"is_active"`
+	}
+
+	publicDates := make([]PublicClosedDate, len(closedDates))
+	for i, cd := range closedDates {
+		publicDates[i] = PublicClosedDate{
+			ID:       cd.ID,
+			Date:     cd.Date.Format("2006-01-02"),
+			Reason:   cd.Reason,
+			IsActive: cd.IsActive,
+		}
+	}
+
+	c.JSON(http.StatusOK, publicDates)
 }
 
 func (ac *AdminController) CreateClosedDate(c *gin.Context) {
@@ -855,7 +981,7 @@ type CreateExternalReservationRequest struct {
 	ClientName  string `json:"client_name" binding:"required"`
 	ClientPhone string `json:"client_phone" binding:"required"`
 	ClientEmail string `json:"client_email"`
-	
+
 	// Reservation details
 	SpaceID   uint   `json:"space_id" binding:"required"`
 	StartTime string `json:"start_time" binding:"required"` // Format: "2024-01-15T14:00:00Z"
@@ -922,13 +1048,13 @@ func (ac *AdminController) CreateExternalReservation(c *gin.Context) {
 	adminIDUint := adminID.(uint)
 	reservation := models.Reservation{
 		ExternalClientID: &externalClient.ID,
-		SpaceID:         req.SpaceID,
-		StartTime:       startTime,
-		EndTime:         endTime,
-		Status:          models.ReservationStatus(status),
-		CreditsUsed:     0, // External clients don't use credits
-		CreatedBy:       &adminIDUint,
-		Notes:           req.Notes,
+		SpaceID:          req.SpaceID,
+		StartTime:        startTime,
+		EndTime:          endTime,
+		Status:           models.ReservationStatus(status),
+		CreditsUsed:      0, // External clients don't use credits
+		CreatedBy:        &adminIDUint,
+		Notes:            req.Notes,
 	}
 
 	if err := config.DB.Create(&reservation).Error; err != nil {
@@ -976,7 +1102,7 @@ func (ac *AdminController) UpdateReservation(c *gin.Context) {
 	}
 
 	// Log original values
-	log.Printf("Original reservation - SpaceID: %d, StartTime: %v, EndTime: %v", 
+	log.Printf("Original reservation - SpaceID: %d, StartTime: %v, EndTime: %v",
 		reservation.SpaceID, reservation.StartTime, reservation.EndTime)
 
 	// Update fields if provided
@@ -1034,7 +1160,7 @@ func (ac *AdminController) UpdateReservation(c *gin.Context) {
 	}
 
 	// Log values before save
-	log.Printf("Before save - SpaceID: %d, StartTime: %v, EndTime: %v", 
+	log.Printf("Before save - SpaceID: %d, StartTime: %v, EndTime: %v",
 		reservation.SpaceID, reservation.StartTime, reservation.EndTime)
 
 	// Use Updates instead of Save to ensure changes persist
@@ -1057,7 +1183,7 @@ func (ac *AdminController) UpdateReservation(c *gin.Context) {
 		log.Printf("Adding notes to updates: %s", *req.Notes)
 		updates["notes"] = *req.Notes
 	}
-	
+
 	log.Printf("Final updates map before DB call: %+v", updates)
 
 	// Use direct SQL update to bypass any GORM hooks that might be interfering
@@ -1067,7 +1193,7 @@ func (ac *AdminController) UpdateReservation(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar la reserva"})
 		return
 	}
-	
+
 	log.Printf("Rows affected: %d", result.RowsAffected)
 
 	log.Printf("Reservation updated successfully with: %+v", updates)
@@ -1078,7 +1204,7 @@ func (ac *AdminController) UpdateReservation(c *gin.Context) {
 		log.Printf("Error reloading reservation: %v", err)
 	}
 
-	log.Printf("After reload - SpaceID: %d, StartTime: %v, EndTime: %v", 
+	log.Printf("After reload - SpaceID: %d, StartTime: %v, EndTime: %v",
 		updatedReservation.SpaceID, updatedReservation.StartTime, updatedReservation.EndTime)
 
 	c.JSON(http.StatusOK, gin.H{

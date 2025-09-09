@@ -34,19 +34,6 @@ type User struct {
 	Reservations []Reservation `json:"reservations,omitempty"`
 }
 
-type Credit struct {
-	ID           uint           `json:"id" gorm:"primaryKey"`
-	UserID       uint           `json:"user_id" gorm:"not null"`
-	User         User           `json:"user,omitempty"`
-	Amount       int            `json:"amount" gorm:"not null"` // Credits in multiples of 6
-	PurchaseDate time.Time      `json:"purchase_date" gorm:"not null"`
-	ExpiryDate   time.Time      `json:"expiry_date" gorm:"not null"` // 30 days from purchase
-	IsActive     bool           `json:"is_active" gorm:"default:true"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    gorm.DeletedAt `json:"-" gorm:"index"`
-}
-
 type Space struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
 	Name        string         `json:"name" gorm:"not null"`

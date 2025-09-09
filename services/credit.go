@@ -15,20 +15,45 @@ func NewCreditService() *CreditService {
 	return &CreditService{}
 }
 
-func (s *CreditService) AddCredits(userID uint, amount int) (*models.Credit, error) {
+func (s *CreditService) AddCredits(userID uint, amount int, reason string, reservationId uint, notes string) (*models.Credit, error) {
 	if amount <= 0 {
 		return nil, errors.New("El monto de créditos debe ser positivo")
 	}
 
-	credit := models.Credit{
-		UserID:       userID,
-		Amount:       amount,
-		PurchaseDate: time.Now(),
-		ExpiryDate:   time.Now().AddDate(0, 0, 30), // 30 days from now
-		IsActive:     true,
-	}
+	var credit models.Credit
+	err := config.DB.Transaction(func(tx *gorm.DB) error {
+		credit = models.Credit{
+			UserID:       userID,
+			Amount:       amount,
+			PurchaseDate: time.Now(),
+			ExpiryDate:   time.Now().AddDate(0, 0, 30), // 30 days from now
+			IsActive:     true,
+		}
 
-	if err := config.DB.Create(&credit).Error; err != nil {
+		if err := tx.Create(&credit).Error; err != nil {
+			return err
+		}
+
+		transaction := models.CreditTransaction{
+			UserID:        userID,
+			Amount:        amount,
+			Type:          models.TransactionTypeRefund,
+			Reason:        reason,
+			Notes:         notes,
+		}
+
+		if reservationId > 0 {
+			transaction.ReservationID = &reservationId
+		}
+
+		if err := tx.Create(&transaction).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return nil, err
 	}
 

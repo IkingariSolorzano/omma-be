@@ -34,6 +34,7 @@ func ConnectDatabase() {
 	err = DB.AutoMigrate(
 		&models.User{},
 		&models.Credit{},
+		&models.CreditHistory{},
 		&models.Space{},
 		&models.Schedule{},
 		&models.Reservation{},
@@ -42,6 +43,7 @@ func ConnectDatabase() {
 		&models.Cancellation{},
 		&models.BusinessHour{},
 		&models.ClosedDate{},
+		&models.CreditTransaction{},
 		&models.ExternalClient{},
 	)
 	if err != nil {

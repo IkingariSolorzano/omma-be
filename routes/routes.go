@@ -3,10 +3,10 @@ package routes
 import (
 	"time"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"github.com/IkingariSolorzano/omma-be/controllers"
 	"github.com/IkingariSolorzano/omma-be/middleware"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func SetupRoutes() *gin.Engine {
@@ -45,13 +45,17 @@ func SetupRoutes() *gin.Engine {
 	{
 		// User routes
 		protected.GET("/profile", userController.GetProfile)
+		protected.PUT("/profile", userController.UpdateProfile)
+		protected.POST("/profile/picture", userController.UploadProfilePicture)
+		protected.PUT("/profile/password", userController.ChangePassword)
 		protected.GET("/credits", userController.GetCredits)
 		protected.GET("/spaces", userController.GetSpaces)
 		protected.GET("/schedules", adminController.GetSchedules)
 		protected.GET("/reservations", userController.GetReservations)
 		protected.POST("/reservations", userController.CreateReservation)
 		protected.DELETE("/reservations/:id", userController.CancelReservation)
-		
+		protected.GET("/business-hours", adminController.GetBusinessHours)
+
 		// Calendar routes
 		protected.GET("/calendar", calendarController.GetCalendar)
 		protected.GET("/calendar/available", calendarController.GetAvailableSlots)
@@ -63,16 +67,16 @@ func SetupRoutes() *gin.Engine {
 	admin.Use(middleware.AdminOnly())
 	{
 		// Dashboard
-		admin.GET("/dashboard/stats", dashboardController.GetStats)
+		admin.GET("/dashboard/stats", dashboardController.GetDashboardStats)
 		admin.GET("/dashboard/activity", dashboardController.GetRecentActivity)
-		
+
 		// User management
 		admin.POST("/users", adminController.CreateUser)
 		admin.GET("/users", adminController.GetUsers)
 		admin.GET("/users/:id/credit-lots", adminController.GetUserCreditLots)
 		admin.PUT("/users/:id", adminController.UpdateUser)
 		admin.PUT("/users/:id/password", adminController.ChangeUserPassword)
-		
+
 		// Credit management
 		admin.POST("/credits", adminController.AddCredits)
 		admin.POST("/credits/extend", adminController.ExtendCreditExpiry)
@@ -84,19 +88,21 @@ func SetupRoutes() *gin.Engine {
 		admin.POST("/credit-lots/reactivate", adminController.ReactivateCreditLot)
 		admin.POST("/credit-lots/transfer", adminController.TransferFromCreditLot)
 		admin.POST("/credit-lots/deduct", adminController.DeductFromCreditLot)
-		
+
 		// Payment management
 		admin.POST("/payments", paymentController.RegisterPayment)
 		admin.GET("/payments", paymentController.GetPaymentHistory)
-		
+
 		// Space management
 		admin.POST("/spaces", adminController.CreateSpace)
 		admin.GET("/spaces", adminController.GetSpaces)
+		admin.PUT("/spaces/:id", adminController.UpdateSpace)
+		admin.DELETE("/spaces/:id", adminController.DeleteSpace)
 		admin.POST("/schedules", adminController.CreateSchedule)
 		admin.GET("/schedules", adminController.GetSchedules)
 		admin.PUT("/schedules/:id", adminController.UpdateSchedule)
 		admin.DELETE("/schedules/:id", adminController.DeleteSchedule)
-		
+
 		// Reservation management
 		admin.GET("/reservations/pending", adminController.GetPendingReservations)
 		admin.GET("/reservations", adminController.GetAllReservations)
@@ -104,18 +110,18 @@ func SetupRoutes() *gin.Engine {
 		admin.PUT("/reservations/:id", adminController.UpdateReservation)
 		admin.PUT("/reservations/:id/approve", adminController.ApproveReservation)
 		admin.PUT("/reservations/:id/cancel", adminController.CancelReservation)
-		
+
 		// Business Hours management
 		admin.GET("/business-hours", adminController.GetBusinessHours)
 		admin.POST("/business-hours", adminController.CreateBusinessHour)
 		admin.PUT("/business-hours/:id", adminController.UpdateBusinessHour)
 		admin.DELETE("/business-hours/:id", adminController.DeleteBusinessHour)
-		
+
 		// Closed Dates management
 		admin.GET("/closed-dates", adminController.GetClosedDates)
 		admin.POST("/closed-dates", adminController.CreateClosedDate)
 		admin.DELETE("/closed-dates/:id", adminController.DeleteClosedDate)
-		
+
 		// External Client Reservations
 		admin.POST("/reservations/external", adminController.CreateExternalReservation)
 	}

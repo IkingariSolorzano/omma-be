@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -19,8 +20,12 @@ type Claims struct {
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Debug logging
+		fmt.Printf("[AUTH] Request: %s %s\n", c.Request.Method, c.Request.URL.Path)
+		
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			fmt.Printf("[AUTH] Missing Authorization header\n")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token de autorización requerido"})
 			c.Abort()
 			return
@@ -33,17 +38,20 @@ func AuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
+			fmt.Printf("[AUTH] Token validation failed: %v\n", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
 			c.Abort()
 			return
 		}
 
 		if claims, ok := token.Claims.(*Claims); ok {
+			fmt.Printf("[AUTH] Token valid for user ID: %d\n", claims.UserID)
 			c.Set("user_id", claims.UserID)
 			c.Set("user_email", claims.Email)
 			c.Set("user_role", claims.Role)
 		}
 
+		fmt.Printf("[AUTH] Authentication successful, proceeding to handler\n")
 		c.Next()
 	}
 }
