@@ -62,6 +62,11 @@ func (uc *UserController) GetCredits(c *gin.Context) {
 		return
 	}
 
+	// Ensure credits is never null, return empty array if no credits
+	if credits == nil {
+		credits = []models.Credit{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"credits":        credits,
 		"active_credits": activeCredits,
@@ -117,6 +122,12 @@ func (uc *UserController) GetReservations(c *gin.Context) {
 	reservations, err := uc.reservationService.GetUserReservations(userID.(uint))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener las reservaciones"})
+		return
+	}
+
+	// If no reservations found, return empty array instead of null
+	if len(reservations) == 0 {
+		c.JSON(http.StatusOK, []map[string]interface{}{})
 		return
 	}
 
