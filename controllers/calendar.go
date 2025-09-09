@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -55,40 +56,40 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 	switch periodType {
 	case "day":
 		if startDateStr != "" {
-			startDate, err = time.Parse("2006-01-02", startDateStr)
+			startDate, err = time.ParseInLocation("2006-01-02", startDateStr, loc)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Formato inválido de start_date. Use YYYY-MM-DD"})
 				return
 			}
 		} else {
-			startDate = time.Now().Truncate(24 * time.Hour)
+			startDate = time.Now().In(loc).Truncate(24 * time.Hour)
 		}
 		endDate = startDate.Add(24 * time.Hour)
 
 	case "week":
 		if startDateStr != "" {
-			startDate, err = time.Parse("2006-01-02", startDateStr)
+			startDate, err = time.ParseInLocation("2006-01-02", startDateStr, loc)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Formato inválido de start_date. Use YYYY-MM-DD"})
 				return
 			}
 		} else {
-			now := time.Now()
+			now := time.Now().In(loc)
 			startDate = now.AddDate(0, 0, -int(now.Weekday())).Truncate(24 * time.Hour)
 		}
 		endDate = startDate.Add(7 * 24 * time.Hour)
 
 	case "month":
 		if startDateStr != "" {
-			startDate, err = time.Parse("2006-01-02", startDateStr)
+			startDate, err = time.ParseInLocation("2006-01-02", startDateStr, loc)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Formato inválido de start_date. Use YYYY-MM-DD"})
 				return
 			}
-			startDate = time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, startDate.Location())
+			startDate = time.Date(startDate.Year(), startDate.Month(), 1, 0, 0, 0, 0, loc)
 		} else {
-			now := time.Now()
-			startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+			now := time.Now().In(loc)
+			startDate = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		}
 		endDate = startDate.AddDate(0, 1, 0)
 
@@ -97,12 +98,13 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "start_date y end_date son requeridos para el periodo personalizado"})
 			return
 		}
-		startDate, err = time.Parse("2006-01-02", startDateStr)
+		// Parse dates in Mexico timezone to avoid UTC conversion issues
+		startDate, err = time.ParseInLocation("2006-01-02", startDateStr, loc)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato inválido de start_date. Use YYYY-MM-DD"})
 			return
 		}
-		endDate, err = time.Parse("2006-01-02", endDateStr)
+		endDate, err = time.ParseInLocation("2006-01-02", endDateStr, loc)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Formato inválido de end_date. Use YYYY-MM-DD"})
 			return
@@ -117,6 +119,9 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 	// Ensure dates are in local timezone for consistent querying
 	startDate = startDate.In(loc)
 	endDate = endDate.In(loc)
+
+	// Debug logging for calendar queries
+	fmt.Printf("[CALENDAR] Period: %s, StartDate: %s, EndDate: %s\n", periodType, startDate.Format("2006-01-02 15:04:05"), endDate.Format("2006-01-02 15:04:05"))
 
 	// Build query
 	query := config.DB.Table("reservations r").
@@ -144,6 +149,13 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 	if err := query.Order("r.start_time ASC").Find(&reservations).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los datos del calendario"})
 		return
+	}
+
+	// Debug logging for reservations found
+	fmt.Printf("[CALENDAR] Found %d reservations:\n", len(reservations))
+	for _, res := range reservations {
+		fmt.Printf("  - ID: %d, Space: %s, Start: %s, Status: %s\n", 
+			res.ID, res.SpaceName, res.StartTime.Format("2006-01-02 15:04:05"), res.Status)
 	}
 
 	response := CalendarResponse{
