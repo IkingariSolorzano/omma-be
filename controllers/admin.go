@@ -943,21 +943,38 @@ func (ac *AdminController) CreateClosedDate(c *gin.Context) {
 		return
 	}
 
-	closedDate := models.ClosedDate{
-		Date:     date,
-		Reason:   req.Reason,
-		IsActive: req.IsActive,
-	}
+	var closedDate models.ClosedDate
+	db := config.DB.Unscoped().Where("date = ?", date).First(&closedDate)
 
-	if err := config.DB.Create(&closedDate).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Error al crear la fecha cerrada"})
-		return
+	if db.Error == nil {
+		// Record exists, update and restore it
+		updates := map[string]interface{}{
+			"reason":     req.Reason,
+			"is_active":  req.IsActive,
+			"deleted_at": nil,
+		}
+		if err := config.DB.Model(&closedDate).Unscoped().Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar la fecha cerrada"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Fecha cerrada actualizada exitosamente", "closed_date": closedDate})
+	} else if errors.Is(db.Error, gorm.ErrRecordNotFound) {
+		// Record does not exist, create it
+		newClosedDate := models.ClosedDate{
+			Date:     date,
+			Reason:   req.Reason,
+			IsActive: req.IsActive,
+		}
+		if err := config.DB.Create(&newClosedDate).Error; err != nil {
+			log.Printf("Error creating closed date: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear la fecha cerrada"})
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"message": "Fecha cerrada creada exitosamente", "closed_date": newClosedDate})
+	} else {
+		log.Printf("Database error: %v", db.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error de base de datos"})
 	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message":     "Fecha cerrada creada exitosamente",
-		"closed_date": closedDate,
-	})
 }
 
 func (ac *AdminController) DeleteClosedDate(c *gin.Context) {
