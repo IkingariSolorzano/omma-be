@@ -3,11 +3,12 @@ package main
 import (
 	"log"
 	"os"
-	"github.com/joho/godotenv"
+
 	"github.com/IkingariSolorzano/omma-be/config"
+	"github.com/IkingariSolorzano/omma-be/models"
 	"github.com/IkingariSolorzano/omma-be/routes"
 	"github.com/IkingariSolorzano/omma-be/services"
-	"github.com/IkingariSolorzano/omma-be/models"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -25,9 +26,6 @@ func main() {
 	// Setup routes
 	r := routes.SetupRoutes()
 
-	// Serve static files for profile pictures
-	r.Static("/uploads", "./uploads")
-
 	// Get port from environment or use default
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -43,12 +41,12 @@ func main() {
 func createDefaultAdmin() {
 	var count int64
 	config.DB.Model(&models.User{}).Where("role = ?", models.RoleAdmin).Count(&count)
-	
+
 	if count == 0 {
 		authService := services.NewAuthService()
 		adminEmail := os.Getenv("ADMIN_EMAIL")
 		adminPassword := os.Getenv("ADMIN_PASSWORD")
-		
+
 		if adminEmail == "" {
 			adminEmail = "admin@omma.com"
 		}

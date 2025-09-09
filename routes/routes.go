@@ -126,5 +126,8 @@ func SetupRoutes() *gin.Engine {
 		admin.POST("/reservations/external", adminController.CreateExternalReservation)
 	}
 
+	// Serve static files (images) directly from Go - no external server dependency
+	r.Static("/uploads", "./uploads")
+
 	return r
 }
