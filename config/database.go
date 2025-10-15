@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/IkingariSolorzano/omma-be/models"
 	"gorm.io/driver/postgres"
@@ -27,6 +28,20 @@ func ConnectDatabase() {
 	if err != nil {
 		log.Fatal("Error al conectar a la base de datos:", err)
 	}
+
+	// Configurar el pool de conexiones
+	sqlDB, err := database.DB()
+	if err != nil {
+		log.Fatal("Error al obtener la instancia de SQL DB:", err)
+	}
+
+	// Configuración del pool de conexiones
+	sqlDB.SetMaxOpenConns(25)                  // Máximo de conexiones abiertas
+	sqlDB.SetMaxIdleConns(5)                   // Máximo de conexiones inactivas
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)  // Tiempo de vida máximo de una conexión
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // Tiempo máximo de inactividad
+
+	log.Println("Pool de conexiones configurado: MaxOpen=25, MaxIdle=5, MaxLifetime=5m")
 
 	DB = database
 

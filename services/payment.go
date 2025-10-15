@@ -66,7 +66,9 @@ func (s *PaymentService) RegisterPayment(userID, adminID uint, amount float64, p
 		return nil, err
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
 	return &payment, nil
 }
 

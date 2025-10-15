@@ -403,7 +403,9 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 		return err
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
 	return nil
 }
 
