@@ -5,9 +5,7 @@ import (
 	"os"
 
 	"github.com/IkingariSolorzano/omma-be/config"
-	"github.com/IkingariSolorzano/omma-be/models"
 	"github.com/IkingariSolorzano/omma-be/routes"
-	"github.com/IkingariSolorzano/omma-be/services"
 	"github.com/joho/godotenv"
 )
 
@@ -20,11 +18,22 @@ func main() {
 	// Connect to database
 	config.ConnectDatabase()
 
-	// Create default admin user if it doesn't exist
-	createDefaultAdmin()
+	// Run database migrations
+	sqlDB, err := config.GetSQLDB()
+	if err != nil {
+		log.Fatal("Error al obtener conexión SQL:", err)
+	}
 
-	// Setup routes
-	r := routes.SetupRoutes()
+	if err := config.RunMigrations(sqlDB); err != nil {
+		log.Fatal("Error al ejecutar migraciones:", err)
+	}
+
+	// Initialize WebSocket hub
+	config.InitializeWebSocketHub()
+	log.Println("WebSocket hub started")
+
+	// Setup routes with WebSocket hub
+	r := routes.SetupRoutes(config.WSHub)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")
@@ -35,30 +44,5 @@ func main() {
 	log.Printf("Server starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Error al iniciar el servidor:", err)
-	}
-}
-
-func createDefaultAdmin() {
-	var count int64
-	config.DB.Model(&models.User{}).Where("role = ?", models.RoleAdmin).Count(&count)
-
-	if count == 0 {
-		authService := services.NewAuthService()
-		adminEmail := os.Getenv("ADMIN_EMAIL")
-		adminPassword := os.Getenv("ADMIN_PASSWORD")
-
-		if adminEmail == "" {
-			adminEmail = "admin@omma.com"
-		}
-		if adminPassword == "" {
-			adminPassword = "admin123"
-		}
-
-		_, err := authService.CreateUser(adminEmail, adminPassword, "Administrator", models.RoleAdmin)
-		if err != nil {
-			log.Printf("Error al crear el administrador por defecto: %v", err)
-		} else {
-			log.Printf("Administrador por defecto creado con correo: %s", adminEmail)
-		}
 	}
 }

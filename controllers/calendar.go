@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/models"
+	"github.com/gin-gonic/gin"
 )
 
 type CalendarController struct{}
@@ -23,6 +23,7 @@ type CalendarReservation struct {
 	SpaceName string    `json:"space_name"`
 	UserID    uint      `json:"user_id"`
 	UserName  string    `json:"user_name"`
+	UserPhone string    `json:"user_phone"` // Teléfono para WhatsApp
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
 	Status    string    `json:"status"`
@@ -125,9 +126,10 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 
 	// Build query
 	query := config.DB.Table("reservations r").
-		Select("r.id, r.space_id, s.name as space_name, r.user_id, u.name as user_name, r.start_time, r.end_time, r.status").
+		Select("r.id, r.space_id, s.name as space_name, r.user_id, COALESCE(u.name, ec.name, 'Cliente externo') as user_name, COALESCE(u.phone, ec.phone, '') as user_phone, r.start_time, r.end_time, r.status").
 		Joins("LEFT JOIN spaces s ON r.space_id = s.id").
 		Joins("LEFT JOIN users u ON r.user_id = u.id").
+		Joins("LEFT JOIN external_clients ec ON r.external_client_id = ec.id").
 		Where("r.start_time >= ? AND r.start_time < ?", startDate, endDate).
 		Where("r.status IN (?)", []models.ReservationStatus{models.StatusConfirmed, models.StatusPending})
 
@@ -154,7 +156,7 @@ func (cc *CalendarController) GetCalendar(c *gin.Context) {
 	// Debug logging for reservations found
 	fmt.Printf("[CALENDAR] Found %d reservations:\n", len(reservations))
 	for _, res := range reservations {
-		fmt.Printf("  - ID: %d, Space: %s, Start: %s, Status: %s\n", 
+		fmt.Printf("  - ID: %d, Space: %s, Start: %s, Status: %s\n",
 			res.ID, res.SpaceName, res.StartTime.Format("2006-01-02 15:04:05"), res.Status)
 	}
 
@@ -256,7 +258,7 @@ func (cc *CalendarController) GetAvailableSlots(c *gin.Context) {
 			available := true
 			for _, res := range reservations {
 				if res.SpaceID == schedule.SpaceID &&
-					((current.Before(res.EndTime) && slotEnd.After(res.StartTime))) {
+					(current.Before(res.EndTime) && slotEnd.After(res.StartTime)) {
 					available = false
 					break
 				}

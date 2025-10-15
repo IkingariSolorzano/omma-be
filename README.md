@@ -15,6 +15,7 @@ Backend API para la aplicación Omma, un sistema de renta de consultorios por ho
 - **Go 1.23.2**
 - **Gin Framework** - API REST
 - **GORM** - ORM para PostgreSQL
+- **Goose** - Migraciones de base de datos
 - **JWT** - Autenticación
 - **PostgreSQL** - Base de datos
 - **Docker** - Containerización
@@ -54,8 +55,22 @@ ADMIN_EMAIL=admin@omma.com
 ADMIN_PASSWORD=admin123
 ```
 
-4. Instala las dependencias:
+4. Instala las dependencias y configura las migraciones:
+
+**En Windows (PowerShell):**
 ```bash
+.\install_migrations.ps1
+```
+
+**En Linux/Mac:**
+```bash
+chmod +x install_migrations.sh
+./install_migrations.sh
+```
+
+**O manualmente:**
+```bash
+go get github.com/pressly/goose/v3
 go mod tidy
 ```
 
@@ -63,6 +78,10 @@ go mod tidy
 ```bash
 go run main.go
 ```
+
+Las migraciones se ejecutarán automáticamente al iniciar la aplicación, creando:
+- Usuario administrador por defecto
+- Horarios de negocio (Lun-Vie: 10:00-20:00, Sáb: 09:00-18:00)
 
 ### Usando Docker
 
@@ -132,25 +151,42 @@ Esto iniciará PostgreSQL y la aplicación automáticamente.
 4. Ejecuta: `docker-compose up -d`
 5. Configura un proxy reverso (Nginx) si es necesario
 
+## Migraciones de Base de Datos
+
+El proyecto utiliza **Goose** para gestionar las migraciones de base de datos. Las migraciones se ejecutan automáticamente al iniciar la aplicación.
+
+### Migraciones Incluidas
+
+1. **Creación de usuario administrador**: Se crea automáticamente usando las credenciales de las variables de entorno `ADMIN_EMAIL` y `ADMIN_PASSWORD`
+2. **Horarios de negocio por defecto**:
+   - Lunes a Viernes: 10:00 - 20:00
+   - Sábado: 09:00 - 18:00
+   - Domingo: Cerrado
+
+Para más información sobre las migraciones, consulta [MIGRATION_SETUP.md](./MIGRATION_SETUP.md) y [migrations/README.md](./migrations/README.md).
+
 ## Usuario Administrador por Defecto
 
-Al iniciar la aplicación por primera vez, se crea automáticamente un usuario administrador:
-- **Email**: admin@omma.com
-- **Password**: admin123
+Al iniciar la aplicación por primera vez, la migración crea automáticamente un usuario administrador:
+- **Email**: admin@omma.com (configurable con `ADMIN_EMAIL`)
+- **Password**: admin123 (configurable con `ADMIN_PASSWORD`)
 
-**¡Importante!** Cambia estas credenciales en producción.
+**¡Importante!** Cambia estas credenciales en producción configurando las variables de entorno antes del primer inicio.
 
 ## Estructura del Proyecto
 
 ```
 omma-be/
-├── config/          # Configuración de base de datos
+├── config/          # Configuración de base de datos y migraciones
 ├── controllers/     # Controladores HTTP
 ├── middleware/      # Middleware de autenticación
+├── migrations/      # Migraciones de base de datos (Goose)
 ├── models/          # Modelos de datos
 ├── routes/          # Definición de rutas
 ├── services/        # Lógica de negocio
 ├── main.go          # Punto de entrada
 ├── Dockerfile       # Configuración Docker
-└── docker-compose.yml
+├── docker-compose.yml
+├── MIGRATION_SETUP.md    # Guía de configuración de migraciones
+└── install_migrations.*  # Scripts de instalación
 ```

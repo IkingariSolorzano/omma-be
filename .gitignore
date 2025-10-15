@@ -45,3 +45,30 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Documentation files (keep only essential docs)
+ACTIVAR_DESACTIVAR_USUARIOS.md
+CAMBIOS_FRONTEND_COMPLETADOS.md
+CHANGELOG_MIGRATIONS.md
+CORRECCIONES_PENDIENTES.md
+FASE1_CAMBIOS_COMPLETADOS.md
+FASE2_CAMBIOS_HTML.md
+FASE2_COMPLETADA.md
+FASE2_ENDPOINTS_CLIENTES.md
+FASE2_FIXES.md
+FASE3_WHATSAPP_COMPLETADA.md
+FASE4_DIRECTORIO_COMPLETADA.md
+MIGRATION_SETUP.md
+PRE_DEPLOYMENT_CHECKLIST.md
+QUICKSTART_MIGRATIONS.md
+RESUMEN_CORRECCIONES.md
+STATUS_MIGRACIONES.md
+
+# SQL scripts (temporary)
+check_migrations.sql
+fix_migration.sql
+verificar_duplicados.sql
+
+# Installation scripts
+install_migrations.ps1
+install_migrations.sh

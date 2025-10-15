@@ -5,17 +5,18 @@ import (
 
 	"github.com/IkingariSolorzano/omma-be/controllers"
 	"github.com/IkingariSolorzano/omma-be/middleware"
+	"github.com/IkingariSolorzano/omma-be/websocket"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes() *gin.Engine {
+func SetupRoutes(hub *websocket.Hub) *gin.Engine {
 	r := gin.Default()
 
 	// Configure CORS
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:4200", "http://localhost:3000", "http://127.0.0.1:4200", "https://ikingarisolorzano.com", "https://www.ikingarisolorzano.com", "http://ikingarisolorzano.com.mx", "http://www.ikingarisolorzano.com.mx"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -37,6 +38,9 @@ func SetupRoutes() *gin.Engine {
 		public.POST("/auth/register", authController.Register)
 		public.GET("/professionals", userController.GetProfessionalDirectory)
 		public.GET("/closed-dates", controllers.GetPublicClosedDates)
+		
+		// WebSocket route (public but will validate token internally)
+		public.GET("/ws", websocket.HandleWebSocket(hub))
 	}
 
 	// Protected routes
@@ -76,6 +80,7 @@ func SetupRoutes() *gin.Engine {
 		admin.GET("/users/:id/credit-lots", adminController.GetUserCreditLots)
 		admin.PUT("/users/:id", adminController.UpdateUser)
 		admin.PUT("/users/:id/password", adminController.ChangeUserPassword)
+		admin.PATCH("/users/:id/toggle-status", adminController.ToggleUserStatus)
 
 		// Credit management
 		admin.POST("/credits", adminController.AddCredits)
@@ -124,6 +129,11 @@ func SetupRoutes() *gin.Engine {
 
 		// External Client Reservations
 		admin.POST("/reservations/external", adminController.CreateExternalReservation)
+		
+		// External Client Management
+		admin.GET("/external-clients/search", adminController.SearchExternalClients)
+		admin.GET("/external-clients/frequent", adminController.GetFrequentExternalClients)
+		admin.GET("/external-clients/by-phone", adminController.GetExternalClientByPhone)
 	}
 
 	// Serve static files (images) directly from Go - no external server dependency

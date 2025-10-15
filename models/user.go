@@ -98,6 +98,29 @@ type Reservation struct {
 	Penalties []Penalty `json:"penalties,omitempty"`
 }
 
+// GetReservantName returns the name of the person who made the reservation
+// Checks User first, then ExternalClient, then returns a default
+func (r *Reservation) GetReservantName() string {
+	if r.User != nil && r.User.Name != "" {
+		return r.User.Name
+	}
+	if r.ExternalClient != nil && r.ExternalClient.Name != "" {
+		return r.ExternalClient.Name
+	}
+	return "Cliente externo"
+}
+
+// GetReservantPhone returns the phone of the person who made the reservation
+func (r *Reservation) GetReservantPhone() string {
+	if r.User != nil && r.User.Phone != "" {
+		return r.User.Phone
+	}
+	if r.ExternalClient != nil && r.ExternalClient.Phone != "" {
+		return r.ExternalClient.Phone
+	}
+	return ""
+}
+
 type PenaltyStatus string
 
 const (

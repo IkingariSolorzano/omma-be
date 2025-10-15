@@ -13,6 +13,7 @@ import (
 	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/models"
 	"github.com/IkingariSolorzano/omma-be/services"
+	"github.com/IkingariSolorzano/omma-be/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -110,6 +111,29 @@ func (uc *UserController) CreateReservation(c *gin.Context) {
 		return
 	}
 
+	// Load relations for WebSocket event
+	config.DB.Preload("Space").Preload("User").First(&reservation, reservation.ID)
+
+	// Broadcast WebSocket event
+	if config.WSHub != nil {
+		userName := "Usuario"
+		if reservation.User != nil {
+			userName = reservation.User.Name
+		}
+		
+		event := websocket.ReservationEvent{
+			ReservationID: reservation.ID,
+			SpaceID:       reservation.SpaceID,
+			SpaceName:     reservation.Space.Name,
+			UserName:      userName,
+			StartTime:     reservation.StartTime.Format(time.RFC3339),
+			EndTime:       reservation.EndTime.Format(time.RFC3339),
+			Status:        string(reservation.Status),
+			Action:        "created",
+		}
+		config.WSHub.BroadcastMessage(websocket.EventReservationCreated, event)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message":     "Reservación creada exitosamente",
 		"reservation": reservation,
@@ -176,6 +200,29 @@ func (uc *UserController) CancelReservation(c *gin.Context) {
 		return
 	}
 
+	// Broadcast WebSocket event
+	if config.WSHub != nil {
+		var reservation models.Reservation
+		config.DB.Preload("Space").Preload("User").First(&reservation, reservationID)
+		
+		userName := "Usuario"
+		if reservation.User != nil {
+			userName = reservation.User.Name
+		}
+		
+		event := websocket.ReservationEvent{
+			ReservationID: reservation.ID,
+			SpaceID:       reservation.SpaceID,
+			SpaceName:     reservation.Space.Name,
+			UserName:      userName,
+			StartTime:     reservation.StartTime.Format(time.RFC3339),
+			EndTime:       reservation.EndTime.Format(time.RFC3339),
+			Status:        string(reservation.Status),
+			Action:        "cancelled",
+		}
+		config.WSHub.BroadcastMessage(websocket.EventReservationCancelled, event)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Reservación cancelada exitosamente"})
 }
 
@@ -191,16 +238,27 @@ func (uc *UserController) GetSpaces(c *gin.Context) {
 
 func (uc *UserController) GetProfessionalDirectory(c *gin.Context) {
 	var users []models.User
+	
+	// Get search parameters
+	searchQuery := c.Query("q")        // General search
+	specialty := c.Query("specialty")   // Filter by specialty
 
-	// Get users with active credits who are professionals
-	subquery := config.DB.Model(&models.Credit{}).
-		Select("user_id").
-		Where("is_active = ? AND expiry_date > ?", true, time.Now()).
-		Group("user_id")
+	// Base query: all active professionals
+	query := config.DB.Where("role = ? AND is_active = ?", models.RoleProfessional, true)
+	
+	// Apply search filters
+	if searchQuery != "" {
+		searchPattern := "%" + searchQuery + "%"
+		query = query.Where("name ILIKE ? OR specialty ILIKE ? OR description ILIKE ?", 
+			searchPattern, searchPattern, searchPattern)
+	}
+	
+	if specialty != "" {
+		query = query.Where("specialty ILIKE ?", "%"+specialty+"%")
+	}
 
-	err := config.DB.Where("role = ? AND is_active = ? AND id IN (?)",
-		models.RoleProfessional, true, subquery).
-		Select("id, name, email, phone, specialty, description, profile_image").
+	err := query.Select("id, name, email, phone, specialty, description, profile_image, created_at").
+		Order("name ASC").
 		Find(&users).Error
 
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/IkingariSolorzano/omma-be/config"
 	"github.com/IkingariSolorzano/omma-be/models"
 	"github.com/IkingariSolorzano/omma-be/services"
+	"github.com/IkingariSolorzano/omma-be/websocket"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -670,6 +671,31 @@ func (ac *AdminController) CancelReservation(c *gin.Context) {
 		return
 	}
 
+	// Broadcast WebSocket event
+	if config.WSHub != nil {
+		var reservation models.Reservation
+		config.DB.Preload("Space").Preload("User").Preload("ExternalClient").First(&reservation, reservationID)
+		
+		userName := "Cliente"
+		if reservation.User != nil {
+			userName = reservation.User.Name
+		} else if reservation.ExternalClient != nil {
+			userName = reservation.ExternalClient.Name
+		}
+		
+		event := websocket.ReservationEvent{
+			ReservationID: reservation.ID,
+			SpaceID:       reservation.SpaceID,
+			SpaceName:     reservation.Space.Name,
+			UserName:      userName,
+			StartTime:     reservation.StartTime.Format(time.RFC3339),
+			EndTime:       reservation.EndTime.Format(time.RFC3339),
+			Status:        string(reservation.Status),
+			Action:        "cancelled",
+		}
+		config.WSHub.BroadcastMessage(websocket.EventReservationCancelled, event)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Reserva cancelada exitosamente"})
 }
 
@@ -686,6 +712,31 @@ func (ac *AdminController) ApproveReservation(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Broadcast WebSocket event
+	if config.WSHub != nil {
+		var reservation models.Reservation
+		config.DB.Preload("Space").Preload("User").Preload("ExternalClient").First(&reservation, reservationID)
+		
+		userName := "Cliente"
+		if reservation.User != nil {
+			userName = reservation.User.Name
+		} else if reservation.ExternalClient != nil {
+			userName = reservation.ExternalClient.Name
+		}
+		
+		event := websocket.ReservationEvent{
+			ReservationID: reservation.ID,
+			SpaceID:       reservation.SpaceID,
+			SpaceName:     reservation.Space.Name,
+			UserName:      userName,
+			StartTime:     reservation.StartTime.Format(time.RFC3339),
+			EndTime:       reservation.EndTime.Format(time.RFC3339),
+			Status:        string(reservation.Status),
+			Action:        "approved",
+		}
+		config.WSHub.BroadcastMessage(websocket.EventReservationApproved, event)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Reserva aprobada exitosamente"})
@@ -773,7 +824,7 @@ func (ac *AdminController) ChangeUserPassword(c *gin.Context) {
 // Business Hours Management
 func (ac *AdminController) GetBusinessHours(c *gin.Context) {
 	var businessHours []models.BusinessHour
-	if err := config.DB.Find(&businessHours).Error; err != nil {
+	if err := config.DB.Order("day_of_week ASC").Find(&businessHours).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener los horarios de negocio"})
 		return
 	}
@@ -1031,9 +1082,11 @@ func (ac *AdminController) CreateExternalReservation(c *gin.Context) {
 	// Calculate end time
 	endTime := startTime.Add(time.Duration(req.Duration) * time.Hour)
 
-	// Create or find external client
+	// Create or find external client by phone
 	var externalClient models.ExternalClient
-	if err := config.DB.Where("phone = ?", req.ClientPhone).First(&externalClient).Error; err != nil {
+	err = config.DB.Where("phone = ?", req.ClientPhone).First(&externalClient).Error
+	
+	if err != nil {
 		// Client doesn't exist, create new one
 		externalClient = models.ExternalClient{
 			Name:  req.ClientName,
@@ -1045,15 +1098,9 @@ func (ac *AdminController) CreateExternalReservation(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear cliente"})
 			return
 		}
-	} else {
-		// Update existing client info
-		externalClient.Name = req.ClientName
-		externalClient.Email = req.ClientEmail
-		if req.Notes != "" {
-			externalClient.Notes = req.Notes
-		}
-		config.DB.Save(&externalClient)
 	}
+	// Si el cliente ya existe, lo reutilizamos sin actualizar
+	// Esto mantiene la información original y evita sobrescribir datos
 
 	// Set default status
 	status := req.Status
@@ -1081,6 +1128,21 @@ func (ac *AdminController) CreateExternalReservation(c *gin.Context) {
 
 	// Load relations for response
 	config.DB.Preload("ExternalClient").Preload("Space").First(&reservation, reservation.ID)
+
+	// Broadcast WebSocket event
+	if config.WSHub != nil {
+		event := websocket.ReservationEvent{
+			ReservationID: reservation.ID,
+			SpaceID:       reservation.SpaceID,
+			SpaceName:     reservation.Space.Name,
+			UserName:      externalClient.Name,
+			StartTime:     reservation.StartTime.Format(time.RFC3339),
+			EndTime:       reservation.EndTime.Format(time.RFC3339),
+			Status:        string(reservation.Status),
+			Action:        "created",
+		}
+		config.WSHub.BroadcastMessage(websocket.EventReservationCreated, event)
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message":     "Reserva creada exitosamente",
@@ -1227,5 +1289,131 @@ func (ac *AdminController) UpdateReservation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "Reserva actualizada exitosamente",
 		"reservation": updatedReservation,
+	})
+}
+
+// SearchExternalClients searches for external clients by name or phone
+func (ac *AdminController) SearchExternalClients(c *gin.Context) {
+	query := c.Query("q") // Search query
+	
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Parámetro de búsqueda 'q' requerido"})
+		return
+	}
+
+	var clients []models.ExternalClient
+	searchPattern := "%" + query + "%"
+	
+	// Use a subquery to get only the most recent record for each unique name+phone combination
+	err := config.DB.Raw(`
+		SELECT DISTINCT ON (name, phone) id, name, phone, email, created_at, updated_at
+		FROM external_clients
+		WHERE (name ILIKE ? OR phone ILIKE ?) AND deleted_at IS NULL
+		ORDER BY name ASC, phone ASC, created_at DESC
+		LIMIT 10
+	`, searchPattern, searchPattern).Scan(&clients).Error
+	
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al buscar clientes"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"clients": clients})
+}
+
+// GetFrequentExternalClients returns external clients ordered by number of reservations
+func (ac *AdminController) GetFrequentExternalClients(c *gin.Context) {
+	limit := 20 // Default limit
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
+
+	type ClientWithCount struct {
+		models.ExternalClient
+		ReservationCount int `json:"reservation_count"`
+	}
+
+	var clients []ClientWithCount
+	
+	err := config.DB.Table("external_clients ec").
+		Select("ec.*, COUNT(r.id) as reservation_count").
+		Joins("LEFT JOIN reservations r ON r.external_client_id = ec.id").
+		Group("ec.id").
+		Order("reservation_count DESC, ec.name ASC").
+		Limit(limit).
+		Scan(&clients).Error
+	
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener clientes frecuentes"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"clients": clients})
+}
+
+// GetExternalClientByPhone returns an external client by phone number
+func (ac *AdminController) GetExternalClientByPhone(c *gin.Context) {
+	phone := c.Query("phone")
+	
+	if phone == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Parámetro 'phone' requerido"})
+		return
+	}
+
+	var client models.ExternalClient
+	err := config.DB.Where("phone = ?", phone).First(&client).Error
+	
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Cliente no encontrado"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al buscar cliente"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"client": client})
+}
+
+// ToggleUserStatus toggles the is_active status of a user
+func (ac *AdminController) ToggleUserStatus(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	var user models.User
+	if err := config.DB.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al buscar usuario"})
+		return
+	}
+
+	// Toggle the is_active status
+	user.IsActive = !user.IsActive
+	
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar usuario"})
+		return
+	}
+
+	status := "desactivado"
+	if user.IsActive {
+		status = "activado"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Usuario %s exitosamente", status),
+		"user": gin.H{
+			"id": user.ID,
+			"name": user.Name,
+			"is_active": user.IsActive,
+		},
 	})
 }

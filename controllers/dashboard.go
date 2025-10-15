@@ -186,8 +186,9 @@ func (dc *DashboardController) GetRecentActivity(c *gin.Context) {
 	}
 
 	config.DB.Table("reservations r").
-		Select("r.id, u.name as user_name, s.name as space_name, r.status, r.created_at").
+		Select("r.id, COALESCE(u.name, ec.name) as user_name, s.name as space_name, r.status, r.created_at").
 		Joins("LEFT JOIN users u ON r.user_id = u.id").
+		Joins("LEFT JOIN external_clients ec ON r.external_client_id = ec.id").
 		Joins("LEFT JOIN spaces s ON r.space_id = s.id").
 		Where("r.status <> ?", "cancelled").
 		Order("r.created_at DESC").
@@ -195,11 +196,15 @@ func (dc *DashboardController) GetRecentActivity(c *gin.Context) {
 		Scan(&reservations)
 
 	for _, res := range reservations {
+		userName := res.UserName
+		if userName == "" {
+			userName = "Cliente externo"
+		}
 		activities = append(activities, RecentActivity{
 			ID:          res.ID,
 			Type:        "reservation",
-			Description: res.UserName + " reservó " + res.SpaceName + " (" + res.Status + ")",
-			UserName:    res.UserName,
+			Description: userName + " reservó " + res.SpaceName + " (" + res.Status + ")",
+			UserName:    userName,
 			CreatedAt:   res.CreatedAt,
 		})
 	}
