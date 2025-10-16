@@ -15,6 +15,8 @@ Crea el usuario administrador por defecto. Las credenciales se toman de las vari
 
 La contraseña se hashea con bcrypt usando cost 14, igual que en el resto de la aplicación.
 
+**Nota**: Esta migración NO inserta créditos directamente en la tabla `users` porque los créditos se manejan en una tabla separada (`credits`) con una relación uno-a-muchos.
+
 ### 00002_create_default_business_hours.go
 Configura los horarios de negocio por defecto:
 - **Lunes a Viernes**: 10:00 - 20:00

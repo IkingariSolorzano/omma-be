@@ -41,8 +41,8 @@ func upCreateDefaultAdmin(tx *sql.Tx) error {
 	// Only create admin if none exists
 	if count == 0 {
 		query := `
-			INSERT INTO users (email, password, name, role, credits, is_active, created_at, updated_at)
-			VALUES ($1, $2, 'Administrator', 'admin', 0, true, NOW(), NOW())
+			INSERT INTO users (email, password, name, role, is_active, created_at, updated_at)
+			VALUES ($1, $2, 'Administrator', 'admin', true, NOW(), NOW())
 		`
 		_, err = tx.Exec(query, adminEmail, string(hashedPassword))
 		if err != nil {
