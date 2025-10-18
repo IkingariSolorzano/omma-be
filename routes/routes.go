@@ -2,6 +2,7 @@ package routes
 
 import (
 	"time"
+	"os"
 
 	"github.com/IkingariSolorzano/omma-be/controllers"
 	"github.com/IkingariSolorzano/omma-be/middleware"
@@ -137,7 +138,11 @@ func SetupRoutes(hub *websocket.Hub) *gin.Engine {
 	}
 
 	// Serve static files (images) directly from Go - no external server dependency
-	r.Static("/uploads", "./uploads")
+	uploadsRootDir := os.Getenv("UPLOADS_ROOT_DIR")
+	if uploadsRootDir == "" {
+		uploadsRootDir = "./uploads"
+	}
+	r.Static("/uploads", uploadsRootDir)
 
 	return r
 }

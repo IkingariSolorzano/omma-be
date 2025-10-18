@@ -26,6 +26,18 @@ func (s *ReservationService) CreateReservation(userID, spaceID uint, startTime, 
 		return nil, errors.New("Espacio no encontrado")
 	}
 
+	// Validate that the reservation is not in the past
+	loc, err := time.LoadLocation("America/Mexico_City")
+	if err != nil {
+		loc = time.Local
+	}
+	now := time.Now().In(loc)
+	localStartTime := startTime.In(loc)
+	
+	if localStartTime.Before(now) {
+		return nil, errors.New("No se pueden crear reservaciones para fechas pasadas")
+	}
+
 	// Check if user has enough credits
 	availableCredits, err := s.creditService.GetActiveCredits(userID)
 	if err != nil {

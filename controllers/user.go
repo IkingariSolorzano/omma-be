@@ -313,9 +313,15 @@ func (uc *UserController) UploadProfilePicture(c *gin.Context) {
 		return
 	}
 
-	// Production paths - relative to project directory (portable)
-	uploadsBaseDir := "uploads"
-	profilePicturesDir := filepath.Join(uploadsBaseDir, "profile_pictures")
+	uploadsRootDir := os.Getenv("UPLOADS_ROOT_DIR")
+	if uploadsRootDir == "" {
+		uploadsRootDir = "./uploads"
+	}
+	profileSubdir := os.Getenv("PROFILE_PICTURES_SUBDIR")
+	if profileSubdir == "" {
+		profileSubdir = "profile_pictures"
+	}
+	profilePicturesDir := filepath.Join(uploadsRootDir, profileSubdir)
 
 	// Create uploads directories if they don't exist
 	if err := os.MkdirAll(profilePicturesDir, 0755); err != nil {
@@ -372,11 +378,11 @@ func (uc *UserController) UploadProfilePicture(c *gin.Context) {
 	// Delete old profile picture if exists
 	if user.ProfileImage != "" {
 		// Construct path relative to current directory
-		oldImagePath := strings.TrimPrefix(user.ProfileImage, "/")
-		// If it starts with "uploads/", it's already relative
-		if !strings.HasPrefix(oldImagePath, "uploads/") {
-			oldImagePath = filepath.Join("uploads", oldImagePath)
+		oldRel := strings.TrimPrefix(user.ProfileImage, "/uploads/")
+		if oldRel == user.ProfileImage {
+			oldRel = strings.TrimPrefix(strings.TrimPrefix(user.ProfileImage, "/"), "uploads/")
 		}
+		oldImagePath := filepath.Join(uploadsRootDir, oldRel)
 		fmt.Printf("[UPLOAD] Attempting to delete old image: %s\n", oldImagePath)
 
 		// Check if file exists and delete it
@@ -394,7 +400,7 @@ func (uc *UserController) UploadProfilePicture(c *gin.Context) {
 
 	// Update user profile image path in database
 	// Store relative path for serving: /uploads/profile_pictures/filename
-	relativePath := "/uploads/profile_pictures/" + filename
+	relativePath := "/" + filepath.ToSlash(filepath.Join("uploads", profileSubdir, filename))
 	fmt.Printf("[UPLOAD] Updating database with path: %s\n", relativePath)
 
 	if err := config.DB.Model(&user).Update("profile_image", relativePath).Error; err != nil {
