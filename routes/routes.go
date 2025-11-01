@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"time"
 	"os"
+	"time"
 
 	"github.com/IkingariSolorzano/omma-be/controllers"
 	"github.com/IkingariSolorzano/omma-be/middleware"
@@ -39,7 +39,7 @@ func SetupRoutes(hub *websocket.Hub) *gin.Engine {
 		public.POST("/auth/register", authController.Register)
 		public.GET("/professionals", userController.GetProfessionalDirectory)
 		public.GET("/closed-dates", controllers.GetPublicClosedDates)
-		
+
 		// WebSocket route (public but will validate token internally)
 		public.GET("/ws", websocket.HandleWebSocket(hub))
 	}
@@ -130,7 +130,7 @@ func SetupRoutes(hub *websocket.Hub) *gin.Engine {
 
 		// External Client Reservations
 		admin.POST("/reservations/external", adminController.CreateExternalReservation)
-		
+
 		// External Client Management
 		admin.GET("/external-clients/search", adminController.SearchExternalClients)
 		admin.GET("/external-clients/frequent", adminController.GetFrequentExternalClients)
