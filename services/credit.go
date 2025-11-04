@@ -162,6 +162,9 @@ func (s *CreditService) ExtendExpiry(userID uint, days int) error {
     if days <= 0 {
         return errors.New("Los días a extender deben ser positivos")
     }
+    if days > 365 {
+        return errors.New("El máximo de días a extender es 365")
+    }
 
     var credits []models.Credit
     if err := config.DB.Where("user_id = ? AND is_active = ? AND amount > 0", userID, true).
@@ -257,6 +260,9 @@ func (s *CreditService) AdminDeduct(userID uint, amount int) error {
 func (s *CreditService) ExtendCreditLot(creditID uint, days int) error {
     if days <= 0 {
         return errors.New("Los días a extender deben ser positivos")
+    }
+    if days > 365 {
+        return errors.New("El máximo de días a extender es 365")
     }
     var credit models.Credit
     if err := config.DB.First(&credit, creditID).Error; err != nil {
