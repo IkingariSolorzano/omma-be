@@ -33,7 +33,7 @@ func (s *ReservationService) CreateReservation(userID, spaceID uint, startTime, 
 	}
 	now := time.Now().In(loc)
 	localStartTime := startTime.In(loc)
-	
+
 	if localStartTime.Before(now) {
 		return nil, errors.New("No se pueden crear reservaciones para fechas pasadas")
 	}
@@ -109,19 +109,19 @@ func (s *ReservationService) checkReservationConflicts(spaceID uint, startTime, 
 
 func (s *ReservationService) requiresApproval(spaceID uint, startTime, endTime time.Time) bool {
 	// DEBUG: Add logging to understand timezone handling
-	fmt.Printf("DEBUG requiresApproval - spaceID: %d, startTime: %s (location: %s), endTime: %s (location: %s)\n", 
-		spaceID, startTime.Format("2006-01-02 15:04"), startTime.Location().String(), 
+	fmt.Printf("DEBUG requiresApproval - spaceID: %d, startTime: %s (location: %s), endTime: %s (location: %s)\n",
+		spaceID, startTime.Format("2006-01-02 15:04"), startTime.Location().String(),
 		endTime.Format("2006-01-02 15:04"), endTime.Location().String())
-	
+
 	// Convert to local timezone for time comparisons
 	loc, err := time.LoadLocation("America/Mexico_City") // GMT-6
 	if err != nil {
 		loc = time.Local
 	}
-	
+
 	localStartTime := startTime.In(loc)
 	localEndTime := endTime.In(loc)
-	
+
 	// Check if date is a closed date
 	if s.isClosedDate(startTime) {
 		fmt.Printf("DEBUG: Closed date detected\n")
@@ -170,7 +170,7 @@ func (s *ReservationService) isClosedDate(date time.Time) bool {
 	if err != nil {
 		loc = time.Local
 	}
-	
+
 	localDate := date.In(loc)
 	var count int64
 	config.DB.Model(&models.ClosedDate{}).
@@ -187,7 +187,7 @@ func (s *ReservationService) isWithinBusinessHours(startTime, endTime time.Time)
 		// Fallback to system timezone if location loading fails
 		loc = time.Local
 	}
-	
+
 	localStartTime := startTime.In(loc)
 	localEndTime := endTime.In(loc)
 	dayOfWeek := int(localStartTime.Weekday())
@@ -344,18 +344,27 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 
 	tx := config.DB.Begin()
 
+	isUserReservation := reservation.UserID != nil
+
 	cancellation := models.Cancellation{
-		UserID:           *reservation.UserID,
 		ReservationID:    reservationID,
-		CancelledAt:      localNow,  // Use local time
+		CancelledAt:      localNow,
 		HoursBeforeStart: hoursUntilReservation,
 		Reason:           reason,
 		Notes:            notes,
 		CancelledBy:      &adminID,
 	}
+	if isUserReservation {
+		cancellation.UserID = *reservation.UserID
+	}
 
 	penaltyInt := int(penalty)
 	if penalty > 0 {
+		if !isUserReservation {
+			tx.Rollback()
+			return errors.New("No se pueden aplicar penalizaciones a reservas de cliente externo")
+		}
+
 		penaltyRecord := models.Penalty{
 			UserID:        *reservation.UserID,
 			ReservationID: reservationID,
@@ -371,7 +380,7 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 
 		cancellation.PenaltyCredits = penaltyInt
 
-		if reservation.Status == models.StatusConfirmed {
+		if isUserReservation && reservation.Status == models.StatusConfirmed {
 			refund := reservation.CreditsUsed - penaltyInt
 			if refund < 0 {
 				refund = 0
@@ -385,14 +394,18 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 			cancellation.Status = models.CancellationRefunded
 			cancellation.RefundedCredits = refund
 		} else {
-			if err := s.creditService.DeductCredits(*reservation.UserID, penaltyInt); err != nil {
-				tx.Rollback()
-				return err
+			if isUserReservation {
+				if err := s.creditService.DeductCredits(*reservation.UserID, penaltyInt); err != nil {
+					tx.Rollback()
+					return err
+				}
+				cancellation.Status = models.CancellationPenalized
+			} else {
+				cancellation.Status = models.CancellationProcessed
 			}
-			cancellation.Status = models.CancellationPenalized
 		}
 	} else {
-		if reservation.Status == models.StatusConfirmed {
+		if isUserReservation && reservation.Status == models.StatusConfirmed {
 			if _, err := s.creditService.AddCredits(*reservation.UserID, reservation.CreditsUsed, "Reembolso por cancelación administrativa", reservationID, notes); err != nil {
 				tx.Rollback()
 				return err
