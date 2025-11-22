@@ -333,6 +333,21 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 		return errors.New("No se puede cancelar una reservación completada")
 	}
 
+	isUserReservation := reservation.UserID != nil
+
+	// Handle external client reservations (no associated user / credits)
+	if !isUserReservation {
+		if penalty > 0 {
+			return errors.New("No se pueden aplicar penalizaciones a reservas de cliente externo")
+		}
+
+		reservation.Status = models.StatusCancelled
+		if err := config.DB.Save(&reservation).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+
 	now := time.Now()
 	// Convert to local timezone for consistency
 	loc, err := time.LoadLocation("America/Mexico_City") // GMT-6
@@ -344,18 +359,14 @@ func (s *ReservationService) AdminCancelReservation(reservationID, adminID uint,
 
 	tx := config.DB.Begin()
 
-	isUserReservation := reservation.UserID != nil
-
 	cancellation := models.Cancellation{
+		UserID:           *reservation.UserID,
 		ReservationID:    reservationID,
 		CancelledAt:      localNow,
 		HoursBeforeStart: hoursUntilReservation,
 		Reason:           reason,
 		Notes:            notes,
 		CancelledBy:      &adminID,
-	}
-	if isUserReservation {
-		cancellation.UserID = *reservation.UserID
 	}
 
 	penaltyInt := int(penalty)
